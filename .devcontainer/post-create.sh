@@ -4,7 +4,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo ">> Installing helper tools (qrencode, psql)..."
-sudo apt-get update -qq && sudo apt-get install -y -qq qrencode postgresql-client >/dev/null
+if command -v apt-get >/dev/null 2>&1; then
+  sudo apt-get update -qq && sudo apt-get install -y -qq qrencode postgresql-client >/dev/null
+elif command -v apk >/dev/null 2>&1; then
+  sudo apk add --no-cache libqrencode-tools postgresql-client bash curl >/dev/null || true
+fi
 
 if [[ ! -f .env ]]; then
   echo ">> Creating .env with random secrets..."

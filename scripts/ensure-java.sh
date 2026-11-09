@@ -20,13 +20,33 @@ if [[ -z "${JAVA_HOME:-}" ]]; then
   done
 fi
 
-if [[ -z "${JAVA_HOME:-}" ]]; then
-  if command -v apt-get >/dev/null 2>&1; then
-    echo ">> No JDK 21 found; installing openjdk-21-jdk-headless via apt..." >&2
-    sudo apt-get update -qq && sudo apt-get install -y -qq openjdk-21-jdk-headless >&2
+if [[ -z "${JAVA_HOME:-}" ]] && command -v apk >/dev/null 2>&1; then
+  echo ">> No JDK 21 found; trying apk (openjdk21-jdk)..." >&2
+  if sudo apk add --no-cache openjdk21-jdk >&2; then
+    for c in /usr/lib/jvm/java-21-openjdk /usr/lib/jvm/default-jvm /usr/lib/jvm/*21*; do
+      if _java_ok "$c"; then export JAVA_HOME="$c"; break; fi
+    done
+  fi
+fi
+
+if [[ -z "${JAVA_HOME:-}" ]] && command -v apt-get >/dev/null 2>&1; then
+  echo ">> No JDK 21 found; trying apt (openjdk-21-jdk-headless)..." >&2
+  if { sudo apt-get update -qq && sudo apt-get install -y -qq openjdk-21-jdk-headless; } >&2; then
     export JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")"
-  else
-    echo "ERROR: JDK 21+ not found. Install Temurin 21 and set JAVA_HOME." >&2; return 1 2>/dev/null || exit 1
+  fi
+fi
+
+if [[ -z "${JAVA_HOME:-}" ]]; then
+  # Universal fallback: download Temurin 21 (any Linux, no root needed)
+  case "$(uname -m)" in x86_64|amd64) arch=x64;; aarch64|arm64) arch=aarch64;; *) echo "ERROR: unsupported arch $(uname -m)" >&2; return 1 2>/dev/null || exit 1;; esac
+  os=linux; [[ -f /etc/alpine-release ]] && os=alpine-linux
+  dest="$HOME/.local/jdk-21"
+  if ! _java_ok "$dest"; then
+    echo ">> Downloading Temurin 21 ($arch) to $dest ..." >&2
+    mkdir -p "$dest" && curl -fsSL "https://api.adoptium.net/v3/binary/latest/21/ga/$os/$arch/jdk/hotspot/normal/eclipse" | tar -xz -C "$dest" --strip-components=1
+  fi
+  if _java_ok "$dest"; then export JAVA_HOME="$dest"; else
+    echo "ERROR: could not obtain a JDK 21. Install Temurin 21 manually and set JAVA_HOME." >&2; return 1 2>/dev/null || exit 1
   fi
 fi
 export PATH="$JAVA_HOME/bin:$PATH"
