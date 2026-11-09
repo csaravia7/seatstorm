@@ -59,7 +59,7 @@ flowchart LR
 
 ### Option 1 — ☁️ GitHub Codespaces (fastest)
 
-1. Click **Code ▸ Codespaces ▸ New codespace** (pick the **8-core / 32 GB** machine; add `ANTHROPIC_API_KEY` or `NVIDIA_API_KEY` as Codespaces secrets for the chat assistant).
+1. Click **Code ▸ Codespaces ▸ New codespace** (pick the **4-core / 16 GB** (or larger) machine; add `ANTHROPIC_API_KEY` or `NVIDIA_API_KEY` as Codespaces secrets for the chat assistant).
 2. When the terminal is ready, run:
 
 ```bash

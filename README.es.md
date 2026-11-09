@@ -59,7 +59,7 @@ flowchart LR
 
 ### Opción 1 — ☁️ GitHub Codespaces (la más rápida)
 
-1. Haz clic en **Code ▸ Codespaces ▸ New codespace** (elige la máquina de **8 núcleos / 32 GB**; agrega `ANTHROPIC_API_KEY` o `NVIDIA_API_KEY` como secretos de Codespaces para el asistente de chat).
+1. Haz clic en **Code ▸ Codespaces ▸ New codespace** (elige la máquina de **4 núcleos / 16 GB** (o mayor); agrega `ANTHROPIC_API_KEY` o `NVIDIA_API_KEY` como secretos de Codespaces para el asistente de chat).
 2. Cuando la terminal esté lista, ejecuta:
 
 ```bash
