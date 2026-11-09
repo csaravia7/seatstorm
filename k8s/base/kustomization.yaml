@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Orden: namespaces -> secrets -> platform -> apps.
+# Los secretos NO se incluyen (se crean fuera de banda con k8s/scripts/create-secrets.sh);
+# base/secrets/ solo contiene la plantilla.
+resources:
+  - namespaces
+  - platform
+  - apps

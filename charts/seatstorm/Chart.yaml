@@ -1,0 +1,6 @@
+apiVersion: v2
+name: seatstorm
+description: SeatStorm application services (7 Quarkus, assistant-agent, bff, bot-swarm, web). Install in namespace seatstorm.
+type: application
+version: 0.1.0
+appVersion: "demo"

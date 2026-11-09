@@ -1,0 +1,27 @@
+{
+  "name": "seatstorm",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/java:1": { "version": "21", "jdkDistro": "tem", "installMaven": "false" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" },
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": { "minikube": "none" },
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "hostRequirements": { "cpus": 8, "memory": "32gb" },
+  "forwardPorts": [8080, 8085],
+  "portsAttributes": {
+    "8080": { "label": "SeatStorm", "visibility": "public", "onAutoForward": "openBrowser" },
+    "8085": { "label": "Kafka UI", "visibility": "private" }
+  },
+  "secrets": {
+    "DOCKERHUB_USER": { "description": "Docker Hub user (avoids the anonymous pull limit)" },
+    "DOCKERHUB_TOKEN": { "description": "Docker Hub access token (read)" },
+    "ANTHROPIC_API_KEY": { "description": "Anthropic API key (assistant-agent)" },
+    "NVIDIA_API_KEY": { "description": "NVIDIA NIM API key, free tier (assistant-agent)" }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": { "vscode": { "extensions": ["redhat.vscode-quarkus", "vscjava.vscode-java-pack", "dbaeumer.vscode-eslint"] } }
+}

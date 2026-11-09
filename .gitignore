@@ -1,0 +1,14 @@
+
+# Secrets (never commit)
+.env
+k8s/**/secrets.yaml
+
+# Build / IDE
+target/
+*.iml
+.idea/
+.vscode/
+.DS_Store
+node_modules/
+.venv/
+__pycache__/

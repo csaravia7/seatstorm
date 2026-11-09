@@ -1,0 +1,2 @@
+SeatStorm {{ .Values.image.tag }} desplegado en el namespace {{ .Release.Namespace }}.
+IP externa de web:  kubectl get svc web -n {{ .Release.Namespace }}

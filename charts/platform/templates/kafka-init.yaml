@@ -1,0 +1,61 @@
+{{- $labels := include "platform.labels" (dict "name" "kafka-init" "version" (include "platform.imageTag" .Values.kafkaInit.image)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-create-topics
+  labels:
+    {{- $labels | nindent 4 }}
+data:
+  create-topics.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BS="${BOOTSTRAP:-kafka:9092}"
+    T=/opt/kafka/bin/kafka-topics.sh
+    for i in $(seq 1 60); do
+      "$T" --bootstrap-server "$BS" --list >/dev/null 2>&1 && break
+      echo "waiting for kafka at $BS ($i/60)"; sleep 5
+    done
+    mk() { "$T" --bootstrap-server "$BS" --create --if-not-exists --topic "$1" --partitions "$2" --replication-factor 1 --config retention.ms={{ .Values.kafkaInit.retentionMs }}; }
+    {{- range .Values.kafkaInit.topics }}
+    mk {{ .name }} {{ .partitions }}
+    {{- end }}
+    for t in {{ join " " .Values.kafkaInit.dlqTopics }}; do mk "$t.dlq" 1; done
+    "$T" --bootstrap-server "$BS" --list
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-init
+  labels:
+    {{- $labels | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.kafkaInit.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- $labels | nindent 8 }}
+    spec:
+      enableServiceLinks: {{ .Values.enableServiceLinks }}
+      restartPolicy: OnFailure
+      {{- include "platform.pullSecrets" . | nindent 6 }}
+      containers:
+        - name: create-topics
+          image: {{ .Values.kafkaInit.image }}
+          command: ["/bin/bash", "/scripts/create-topics.sh"]
+          env:
+            - name: BOOTSTRAP
+              value: kafka.{{ .Release.Namespace }}.svc.cluster.local:9092
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: kafka-create-topics

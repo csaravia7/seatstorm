@@ -1,0 +1,44 @@
+# Namespace de instalacion: seatstorm. Requiere el Secret `seatstorm-secrets` en este namespace.
+# El tag NO tiene valor util por defecto en AKS: usar --set image.tag=<git-sha>. Nunca :latest.
+image: { registry: docker.io, org: seatstorm, tag: dev, pullPolicy: IfNotPresent }
+imagePullSecrets: []        # p. ej. [{ name: dockerhub }]; alternativa: parchear la ServiceAccount default
+common:
+  enableServiceLinks: false
+  env:
+    KAFKA_BOOTSTRAP: kafka.seatstorm-platform.svc.cluster.local:9092
+    APICURIO_URL: http://apicurio.seatstorm-platform.svc.cluster.local:8080/apis/registry/v3
+    DB_USER: seatstorm
+    QUERY_URL: http://seatmap-query:8080
+  envFrom: [{ secretRef: { name: seatstorm-secrets } }]
+dbHost: postgres.seatstorm-platform.svc.cluster.local:5432
+llm: { provider: anthropic, fallbackProvider: "", maxRpm: "30", anthropicModel: claude-sonnet-5-5, nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1", nvidiaModel: meta/llama-3.3-70b-instruct }
+services:
+  event-catalog:   { kind: quarkus, replicas: 1, db: catalog_db,   resources: { requests: { cpu: 50m,  memory: 96Mi  }, limits: { memory: 256Mi } } }
+  order-service:   { kind: quarkus, replicas: 2, db: order_db,     resources: { requests: { cpu: 100m, memory: 96Mi  }, limits: { memory: 256Mi } } }
+  seat-inventory:  { kind: quarkus, replicas: 3, db: inventory_db, resources: { requests: { cpu: 200m, memory: 128Mi }, limits: { memory: 256Mi } } }
+  payment-sim:     { kind: quarkus, replicas: 1, db: payment_db,   resources: { requests: { cpu: 50m,  memory: 96Mi  }, limits: { memory: 256Mi } } }
+  ticketing:       { kind: quarkus, replicas: 1, db: ticket_db,    resources: { requests: { cpu: 50m,  memory: 96Mi  }, limits: { memory: 256Mi } } }
+  seatmap-query:   { kind: quarkus, replicas: 2, db: query_db,     resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { memory: 256Mi } } }
+  notification:    { kind: quarkus, replicas: 2,                   resources: { requests: { cpu: 100m, memory: 96Mi  }, limits: { memory: 256Mi } } }
+  assistant-agent: { kind: python,  replicas: 1, port: 8080,       resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { memory: 384Mi } } }
+  bff:
+    kind: node
+    replicas: 3
+    port: 3000
+    resources: { requests: { cpu: 200m, memory: 192Mi }, limits: { memory: 384Mi } }
+    env:
+      ORDER_URL: http://order-service:8080
+      CATALOG_URL: http://event-catalog:8080
+      PAYMENT_URL: http://payment-sim:8080
+      AGENT_URL: http://assistant-agent:8080
+      BOTS_URL: http://bot-swarm:3100
+      KAFKA_UI_URL: http://localhost:8085   # kubectl port-forward -n seatstorm-platform svc/kafka-ui 8085:8080
+      DYNATRACE_URL: ""
+  bot-swarm:
+    kind: node
+    replicas: 1
+    port: 3100
+    resources: { requests: { cpu: 200m, memory: 192Mi }, limits: { memory: 384Mi } }
+    env:
+      TARGET_URL: http://bff:3000
+  web:             { kind: nginx,   replicas: 2, port: 8080, runAsUser: 101, resources: { requests: { cpu: 25m, memory: 32Mi }, limits: { memory: 128Mi } }, service: { type: LoadBalancer, port: 80 } }

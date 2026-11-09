@@ -1,0 +1,41 @@
+# Nota: un Job es inmutable; deploy.sh lo borra antes de aplicar.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-init
+  labels:
+    app.kubernetes.io/name: kafka-init
+    app.kubernetes.io/version: 4.0.0
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-init
+        app.kubernetes.io/version: 4.0.0
+        app.kubernetes.io/part-of: seatstorm
+    spec:
+      enableServiceLinks: false
+      restartPolicy: OnFailure
+      containers:
+        - name: create-topics
+          image: apache/kafka:4.0.0
+          command: ["/bin/bash", "/scripts/create-topics.sh"]
+          env:
+            - name: BOOTSTRAP
+              value: kafka.seatstorm-platform.svc.cluster.local:9092
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 384Mi
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+      volumes:
+        - name: scripts
+          configMap:
+            name: kafka-create-topics

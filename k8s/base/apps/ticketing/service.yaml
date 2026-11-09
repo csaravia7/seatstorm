@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticketing
+  labels:
+    app.kubernetes.io/name: ticketing
+    app.kubernetes.io/version: dev
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ticketing
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

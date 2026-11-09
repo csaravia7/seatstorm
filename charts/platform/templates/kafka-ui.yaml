@@ -1,0 +1,58 @@
+{{- $labels := include "platform.labels" (dict "name" "kafka-ui" "version" (include "platform.imageTag" .Values.kafkaUi.image)) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  template:
+    metadata:
+      labels:
+        {{- $labels | nindent 8 }}
+    spec:
+      enableServiceLinks: {{ .Values.enableServiceLinks }}
+      {{- include "platform.pullSecrets" . | nindent 6 }}
+      containers:
+        - name: kafka-ui
+          image: {{ .Values.kafkaUi.image }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - { name: KAFKA_CLUSTERS_0_NAME, value: seatstorm }
+            - { name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS, value: "kafka:9092" }
+            - { name: KAFKA_CLUSTERS_0_SCHEMAREGISTRY, value: "http://apicurio:8080/apis/ccompat/v7" }
+            - { name: DYNAMIC_CONFIG_ENABLED, value: "true" }
+          resources:
+            {{- toYaml .Values.kafkaUi.resources | nindent 12 }}
+          startupProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+            failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  type: {{ ternary "LoadBalancer" "ClusterIP" .Values.kafkaUi.expose }}
+  selector:
+    app.kubernetes.io/name: kafka-ui
+  ports:
+    - name: http
+      port: {{ ternary 80 8080 .Values.kafkaUi.expose }}
+      targetPort: http

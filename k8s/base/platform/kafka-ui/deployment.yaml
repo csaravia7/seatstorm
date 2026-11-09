@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  labels: &labels
+    app.kubernetes.io/name: kafka-ui
+    app.kubernetes.io/version: v1.2.0
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      enableServiceLinks: false
+      containers:
+        - name: kafka-ui
+          image: kafbat/kafka-ui:v1.2.0
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - { name: KAFKA_CLUSTERS_0_NAME, value: seatstorm }
+            - { name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS, value: "kafka:9092" }
+            - { name: KAFKA_CLUSTERS_0_SCHEMAREGISTRY, value: "http://apicurio:8080/apis/ccompat/v7" }
+            - { name: DYNAMIC_CONFIG_ENABLED, value: "true" }
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          startupProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+            failureThreshold: 6

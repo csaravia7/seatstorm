@@ -1,0 +1,46 @@
+# Namespace de instalacion: seatstorm-platform (helm install platform charts/platform -n seatstorm-platform)
+# Requiere el Secret `seatstorm-secrets` (clave DB_PASSWORD) en este namespace (ver docs/RUNBOOK.md).
+secretName: seatstorm-secrets
+imagePullSecrets: []        # p. ej. [{ name: dockerhub }]; alternativa: parchear la ServiceAccount default
+enableServiceLinks: false   # NO cambiar: un Service `kafka` inyecta KAFKA_PORT, que rompe la imagen apache/kafka
+
+kafka:
+  image: apache/kafka:4.0.0
+  advertisedListeners: PLAINTEXT://kafka.seatstorm-platform.svc.cluster.local:9092
+  heap: "-Xms512m -Xmx512m"
+  storage: 5Gi
+  resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { memory: 1Gi } }
+
+postgres:
+  image: postgres:16
+  user: seatstorm
+  maxConnections: 300
+  storage: 5Gi
+  databases: [catalog_db, inventory_db, order_db, payment_db, ticket_db, query_db, apicurio_db]
+  resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { memory: 1Gi } }
+
+apicurio:
+  image: apicurio/apicurio-registry:3.1.7
+  resources: { requests: { cpu: 100m, memory: 384Mi }, limits: { memory: 768Mi } }
+
+kafkaUi:
+  image: kafbat/kafka-ui:v1.2.0
+  expose: false             # true -> Service LoadBalancer (sin autenticacion: solo para demos)
+  resources: { requests: { cpu: 50m, memory: 256Mi }, limits: { memory: 512Mi } }
+
+kafkaInit:
+  image: apache/kafka:4.0.0
+  backoffLimit: 10
+  retentionMs: "86400000"
+  # Espejo de spec 4.4
+  topics:
+    - { name: seat.commands,    partitions: 12 }
+    - { name: seat.events,      partitions: 12 }
+    - { name: order.events,     partitions: 6 }
+    - { name: payment.commands, partitions: 6 }
+    - { name: payment.events,   partitions: 6 }
+    - { name: ticket.events,    partitions: 3 }
+    - { name: sale.events,      partitions: 1 }
+    - { name: demo.control,     partitions: 1 }
+    - { name: ui.events,        partitions: 12 }
+  dlqTopics: [seat.commands, seat.events, payment.commands, payment.events, order.events, ticket.events, sale.events, demo.control]

@@ -1,0 +1,223 @@
+# Overlay AKS. El tag se fija con `images[].newTag` (deploy.sh lo reescribe; nunca :latest).
+# Las etiquetas app.kubernetes.io/version y DT_RELEASE_VERSION se derivan de ese tag con `replacements`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: docker.io/seatstorm/event-catalog
+    newTag: "dev"
+  - name: docker.io/seatstorm/order-service
+    newTag: "dev"
+  - name: docker.io/seatstorm/seat-inventory
+    newTag: "dev"
+  - name: docker.io/seatstorm/payment-sim
+    newTag: "dev"
+  - name: docker.io/seatstorm/ticketing
+    newTag: "dev"
+  - name: docker.io/seatstorm/seatmap-query
+    newTag: "dev"
+  - name: docker.io/seatstorm/notification
+    newTag: "dev"
+  - name: docker.io/seatstorm/assistant-agent
+    newTag: "dev"
+  - name: docker.io/seatstorm/bff
+    newTag: "dev"
+  - name: docker.io/seatstorm/bot-swarm
+    newTag: "dev"
+  - name: docker.io/seatstorm/web
+    newTag: "dev"
+patches:
+  # imagePullSecret `dockerhub` (limite de descargas anonimas de Docker Hub, spec 11.1)
+  - target:
+      kind: Deployment|StatefulSet|Job
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value:
+          - name: dockerhub
+  # IP publica para el Service web
+  - target:
+      kind: Service
+      name: web
+    patch: |-
+      - op: add
+        path: /spec/type
+        value: LoadBalancer
+replacements:
+  - source:
+      kind: Deployment
+      name: event-catalog
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: event-catalog }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: event-catalog }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: order-service
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: order-service }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: order-service }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: seat-inventory
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: seat-inventory }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: seat-inventory }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: payment-sim
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: payment-sim }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: payment-sim }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: ticketing
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: ticketing }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: ticketing }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: seatmap-query
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: seatmap-query }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: seatmap-query }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: notification
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: notification }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: notification }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: assistant-agent
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: assistant-agent }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: assistant-agent }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: bff
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: bff }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: bff }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: bot-swarm
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: bot-swarm }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: bot-swarm }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+  - source:
+      kind: Deployment
+      name: web
+      fieldPath: spec.template.spec.containers.0.image
+      options:
+        delimiter: ":"
+        index: 1
+    targets:
+      - select: { kind: Deployment, name: web }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]
+          - spec.template.metadata.labels.[app.kubernetes.io/version]
+          - spec.template.spec.containers.0.env.[name=DT_RELEASE_VERSION].value
+      - select: { kind: Service, name: web }
+        fieldPaths:
+          - metadata.labels.[app.kubernetes.io/version]

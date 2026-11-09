@@ -1,0 +1,7 @@
+CREATE DATABASE catalog_db;
+CREATE DATABASE inventory_db;
+CREATE DATABASE order_db;
+CREATE DATABASE payment_db;
+CREATE DATABASE ticket_db;
+CREATE DATABASE query_db;
+CREATE DATABASE apicurio_db;

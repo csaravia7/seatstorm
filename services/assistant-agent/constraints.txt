@@ -1,0 +1,11 @@
+# Used only when regenerating requirements.txt:
+#   1) pip install -c constraints.txt <deps of pyproject.toml> in a clean venv and `pip freeze` it
+#   2) pip-compile --generate-hashes --strip-extras --allow-unsafe -o requirements.txt <that freeze>
+# (pip-compile cannot backtrack through the impossible pin by itself.)
+# Recent anthropic/fastapi releases pull opentelemetry-api transitively, which is forbidden (ADR-20, spec 3.3.1:
+# Dynatrace OneAgent instruments the SDKs; a second OTel layer would duplicate spans). This impossible pin makes
+# the resolver pick the newest releases that do not depend on it.
+opentelemetry-api==0.0.0
+# Newest anthropic/openai releases use httpx2 (a separate HTTP stack) which respx cannot mock, so tests could
+# reach the real network. Keep the SDKs on plain httpx:
+httpx2==0.0.0

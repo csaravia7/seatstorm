@@ -1,0 +1,33 @@
+# Local-only override: run the locally built images (scripts/build-local-images.sh), never pull from Docker Hub.
+# JVM images need more memory than the 256m sized for native binaries.
+# Usage: docker compose -f compose.yaml -f compose.local.yaml --profile apps up -d
+services:
+  event-catalog:
+    pull_policy: never
+    mem_limit: 512m
+  order-service:
+    pull_policy: never
+    mem_limit: 512m
+  seat-inventory:
+    pull_policy: never
+    mem_limit: 512m
+  payment-sim:
+    pull_policy: never
+    mem_limit: 512m
+  ticketing:
+    pull_policy: never
+    mem_limit: 512m
+  seatmap-query:
+    pull_policy: never
+    mem_limit: 512m
+  notification:
+    pull_policy: never
+    mem_limit: 384m
+  assistant-agent:
+    pull_policy: never
+  bff:
+    pull_policy: never
+  bot-swarm:
+    pull_policy: never
+  web:
+    pull_policy: never

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: seatstorm-platform
+description: SeatStorm platform (Kafka, PostgreSQL, Apicurio, Kafka UI, kafka-init Job). Install in namespace seatstorm-platform.
+type: application
+version: 0.1.0
+appVersion: "demo"

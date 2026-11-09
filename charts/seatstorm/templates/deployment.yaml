@@ -1,0 +1,119 @@
+{{- range $name, $svc := .Values.services }}
+{{- $kind := $svc.kind }}
+{{- $port := int (default 8080 $svc.port) }}
+{{- $labels := include "seatstorm.labels" (dict "name" $name "tag" $.Values.image.tag) }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- $labels | nindent 8 }}
+    spec:
+      enableServiceLinks: {{ $.Values.common.enableServiceLinks }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ default 1001 $svc.runAsUser }}
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: {{ $.Values.image.registry }}/{{ $.Values.image.org }}/{{ $name }}:{{ $.Values.image.tag }}
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ $port }}
+          env:
+            - name: DT_RELEASE_VERSION
+              value: {{ $.Values.image.tag | quote }}
+            - name: DT_RELEASE_PRODUCT
+              value: seatstorm
+            {{- if ne $kind "nginx" }}
+            {{- range $k, $v := $.Values.common.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- if $svc.db }}
+            - name: DB_URL
+              value: {{ printf "jdbc:postgresql://%s/%s" $.Values.dbHost $svc.db | quote }}
+            {{- end }}
+            {{- if or (eq $kind "node") (eq $kind "python") }}
+            - name: PORT
+              value: {{ $port | quote }}
+            {{- end }}
+            {{- if eq $name "assistant-agent" }}
+            - { name: LLM_PROVIDER, value: {{ $.Values.llm.provider | quote }} }
+            - { name: LLM_FALLBACK_PROVIDER, value: {{ $.Values.llm.fallbackProvider | quote }} }
+            - { name: LLM_MAX_RPM, value: {{ $.Values.llm.maxRpm | quote }} }
+            - { name: ANTHROPIC_MODEL, value: {{ $.Values.llm.anthropicModel | quote }} }
+            - { name: NVIDIA_BASE_URL, value: {{ $.Values.llm.nvidiaBaseUrl | quote }} }
+            - { name: NVIDIA_MODEL, value: {{ $.Values.llm.nvidiaModel | quote }} }
+            {{- end }}
+            {{- range $k, $v := $svc.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- end }}
+          {{- if ne $kind "nginx" }}
+          envFrom:
+            {{- toYaml $.Values.common.envFrom | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml $svc.resources | nindent 12 }}
+          {{- if eq $kind "quarkus" }}
+          startupProbe:
+            httpGet: { path: /q/health/live, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /q/health/live, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /q/health/ready, port: http }
+            periodSeconds: 5
+          {{- else if or (eq $kind "node") (eq $kind "python") }}
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          {{- else }}
+          startupProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

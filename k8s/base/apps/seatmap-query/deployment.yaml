@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seatmap-query
+  labels:
+    app.kubernetes.io/name: seatmap-query
+    app.kubernetes.io/version: dev
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seatmap-query
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seatmap-query
+        app.kubernetes.io/version: dev
+        app.kubernetes.io/part-of: seatstorm
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: seatmap-query
+          image: docker.io/seatstorm/seatmap-query
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DT_RELEASE_VERSION
+              value: "dev"
+            - name: DT_RELEASE_PRODUCT
+              value: "seatstorm"
+            - name: KAFKA_BOOTSTRAP
+              value: "kafka.seatstorm-platform.svc.cluster.local:9092"
+            - name: APICURIO_URL
+              value: "http://apicurio.seatstorm-platform.svc.cluster.local:8080/apis/registry/v3"
+            - name: DB_USER
+              value: "seatstorm"
+            - name: QUERY_URL
+              value: "http://seatmap-query:8080"
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres.seatstorm-platform.svc.cluster.local:5432/query_db"
+          envFrom:
+            - secretRef:
+                name: seatstorm-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+          startupProbe:
+            httpGet:
+              path: /q/health/live
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: http
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

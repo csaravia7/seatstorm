@@ -1,0 +1,197 @@
+name: seatstorm
+
+x-quarkus-env: &quarkus-env
+  KAFKA_BOOTSTRAP: kafka:9092
+  APICURIO_URL: http://apicurio:8080/apis/registry/v3
+  ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin}
+  DB_USER: seatstorm
+  DB_PASSWORD: ${DB_PASSWORD:-seatstorm}
+  TICKET_SECRET: ${TICKET_SECRET:-change-me-ticket-secret}
+
+x-quarkus-svc: &quarkus-svc
+  profiles: ["apps"]
+  restart: unless-stopped
+  mem_limit: 256m
+  depends_on:
+    kafka-init: { condition: service_completed_successfully }
+    postgres: { condition: service_healthy }
+    apicurio: { condition: service_healthy }
+
+services:
+  # ---------- infraestructura ----------
+  kafka:
+    image: apache/kafka:4.0.0
+    hostname: kafka
+    ports: ["9094:9094"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 24
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+    volumes: ["kafkadata:/var/lib/kafka/data"]
+
+  kafka-init:
+    image: apache/kafka:4.0.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    environment: { BOOTSTRAP: "kafka:9092" }
+    volumes: ["./platform/kafka/create-topics.sh:/create-topics.sh:ro"]
+    entrypoint: ["/bin/bash", "/create-topics.sh"]
+    restart: "no"
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: seatstorm
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-seatstorm}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./platform/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U seatstorm -d postgres"]
+      interval: 5s
+      retries: 20
+
+  apicurio:
+    image: apicurio/apicurio-registry:3.1.7
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      APICURIO_STORAGE_KIND: sql
+      APICURIO_STORAGE_SQL_KIND: postgresql
+      APICURIO_DATASOURCE_URL: jdbc:postgresql://postgres:5432/apicurio_db
+      APICURIO_DATASOURCE_USERNAME: seatstorm
+      APICURIO_DATASOURCE_PASSWORD: ${DB_PASSWORD:-seatstorm}
+    ports: ["8081:8080"]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 10s
+      retries: 20
+      start_period: 20s
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.2.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    environment:
+      KAFKA_CLUSTERS_0_NAME: seatstorm
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://apicurio:8080/apis/ccompat/v7
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports: ["8085:8080"]
+
+  # ---------- aplicación (perfil apps) ----------
+  event-catalog:
+    <<: *quarkus-svc
+    image: seatstorm/event-catalog:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+      DB_URL: jdbc:postgresql://postgres:5432/catalog_db
+  order-service:
+    <<: *quarkus-svc
+    image: seatstorm/order-service:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+      DB_URL: jdbc:postgresql://postgres:5432/order_db
+  seat-inventory:
+    <<: *quarkus-svc
+    image: seatstorm/seat-inventory:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+      DB_URL: jdbc:postgresql://postgres:5432/inventory_db
+  payment-sim:
+    <<: *quarkus-svc
+    image: seatstorm/payment-sim:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+      DB_URL: jdbc:postgresql://postgres:5432/payment_db
+  ticketing:
+    <<: *quarkus-svc
+    image: seatstorm/ticketing:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+      DB_URL: jdbc:postgresql://postgres:5432/ticket_db
+  seatmap-query:
+    <<: *quarkus-svc
+    image: seatstorm/seatmap-query:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+      DB_URL: jdbc:postgresql://postgres:5432/query_db
+  notification:
+    <<: *quarkus-svc
+    image: seatstorm/notification:${TAG:-dev}
+    environment:
+      <<: *quarkus-env
+  assistant-agent:
+    image: seatstorm/assistant-agent:${TAG:-dev}
+    profiles: ["apps"]
+    restart: unless-stopped
+    mem_limit: 384m
+    environment:
+      PORT: 8080
+      QUERY_URL: http://seatmap-query:8080
+      LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+      LLM_FALLBACK_PROVIDER: ${LLM_FALLBACK_PROVIDER:-}
+      LLM_MAX_RPM: ${LLM_MAX_RPM:-30}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.3-70b-instruct}
+
+  bff:
+    image: seatstorm/bff:${TAG:-dev}
+    profiles: ["apps"]
+    restart: unless-stopped
+    mem_limit: 384m
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }
+    environment:
+      PORT: 3000
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-32-bytes-minimum-secret}
+      CONSOLE_PIN: ${CONSOLE_PIN:-4321}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin}
+      KAFKA_BOOTSTRAP: kafka:9092
+      ORDER_URL: http://order-service:8080
+      QUERY_URL: http://seatmap-query:8080
+      CATALOG_URL: http://event-catalog:8080
+      PAYMENT_URL: http://payment-sim:8080
+      AGENT_URL: http://assistant-agent:8080
+      BOTS_URL: http://bot-swarm:3100
+      KAFKA_UI_URL: ${KAFKA_UI_URL:-http://localhost:8085}
+      DYNATRACE_URL: ${DYNATRACE_URL:-}
+
+  bot-swarm:
+    image: seatstorm/bot-swarm:${TAG:-dev}
+    profiles: ["apps"]
+    restart: unless-stopped
+    mem_limit: 384m
+    environment: { PORT: 3100, TARGET_URL: "http://bff:3000", ADMIN_TOKEN: "${ADMIN_TOKEN:-change-me-admin}" }
+
+  web:
+    image: seatstorm/web:${TAG:-dev}
+    profiles: ["apps"]
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    depends_on: [bff]
+
+volumes:
+  kafkadata:
+  pgdata:

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: apicurio
+  labels:
+    app.kubernetes.io/name: apicurio
+    app.kubernetes.io/version: 3.1.7
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  selector:
+    app.kubernetes.io/name: apicurio
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

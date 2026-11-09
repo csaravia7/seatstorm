@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apicurio
+  labels: &labels
+    app.kubernetes.io/name: apicurio
+    app.kubernetes.io/version: 3.1.7
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apicurio
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      enableServiceLinks: false
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16
+          command: ["/bin/bash", "-c", "until pg_isready -h postgres -U seatstorm -d postgres; do sleep 2; done"]
+          resources:
+            requests: { cpu: 10m, memory: 16Mi }
+            limits: { memory: 64Mi }
+      containers:
+        - name: apicurio
+          image: apicurio/apicurio-registry:3.1.7
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - { name: APICURIO_STORAGE_KIND, value: sql }
+            - { name: APICURIO_STORAGE_SQL_KIND, value: postgresql }
+            - { name: APICURIO_DATASOURCE_URL, value: "jdbc:postgresql://postgres:5432/apicurio_db" }
+            - { name: APICURIO_DATASOURCE_USERNAME, value: seatstorm }
+            - name: APICURIO_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seatstorm-secrets
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 768Mi
+          startupProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+            failureThreshold: 6

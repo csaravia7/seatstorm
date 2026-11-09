@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: seatmap-query
+  labels:
+    app.kubernetes.io/name: seatmap-query
+    app.kubernetes.io/version: dev
+    app.kubernetes.io/part-of: seatstorm
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: seatmap-query
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

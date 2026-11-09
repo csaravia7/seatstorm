@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1.10
+# Build context = repository root:  docker build -f services/ticketing/src/main/docker/Dockerfile.native-micro .
+## Stage 1: native executable with GraalVM CE (multi-module: -pl -am)
+FROM quay.io/quarkus/ubi9-quarkus-graalvmce-builder-image:jdk-21 AS build
+# When set, the binary is built with the Dynatrace GraalVM Native Image module (-Pdynatrace-native)
+ARG DT_ENV_URL=""
+COPY --chown=quarkus:quarkus --chmod=0755 mvnw /code/mvnw
+COPY --chown=quarkus:quarkus .mvn /code/.mvn
+COPY --chown=quarkus:quarkus . /code/
+USER quarkus
+WORKDIR /code
+# The token arrives as a BuildKit secret: it is not stored in any image layer
+RUN --mount=type=secret,id=dt_api_token,env=DT_API_TOKEN \
+    if [ -n "$DT_ENV_URL" ]; then DT_PROFILE="-Pdynatrace-native"; fi; \
+    ./mvnw -B package -pl services/ticketing -am -Dnative -DskipTests ${DT_PROFILE:-} \
+    && mkdir -p services/ticketing/target/dynatrace
+
+## Stage 2: minimal runtime image, no JVM
+FROM quay.io/quarkus/ubi9-quarkus-micro-image:2.0
+WORKDIR /work/
+COPY --from=build --chown=1001:root --chmod=0755 /code/services/ticketing/target/*-runner /work/application
+# Dynatrace runtime module (empty when built without DT_ENV_URL); must sit next to the binary
+COPY --from=build --chown=1001:root /code/services/ticketing/target/dynatrace /work/dynatrace
+RUN chown 1001:root /work && chmod "g+rwX" /work
+EXPOSE 8080
+USER 1001
+ENTRYPOINT ["./application", "-Dquarkus.http.host=0.0.0.0"]

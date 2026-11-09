@@ -1,0 +1,19 @@
+{{- range $name, $svc := .Values.services }}
+{{- $port := int (default 8080 $svc.port) }}
+{{- $labels := include "seatstorm.labels" (dict "name" $name "tag" $.Values.image.tag) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  type: {{ default "ClusterIP" (get (default dict $svc.service) "type") }}
+  selector:
+    app.kubernetes.io/name: {{ $name }}
+  ports:
+    - name: http
+      port: {{ default $port (get (default dict $svc.service) "port") }}
+      targetPort: http
+{{- end }}

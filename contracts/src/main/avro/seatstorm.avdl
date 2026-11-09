@@ -1,0 +1,50 @@
+@namespace("io.seatstorm.contracts")
+protocol SeatStorm {
+
+  record EventMeta {
+    string eventId;                    // UUID v4
+    long occurredAtMs;                 // epoch millis
+    string correlationId;              // orderId when applicable, else resetId or concertId
+    union { null, string } causationId = null;
+    string producer;                   // service name
+  }
+
+  record SeatChange { string seatId; string state; long version; }
+
+  // ---- sale.events
+  record SaleOpened  { EventMeta meta; string concertId; }
+  record SaleClosed  { EventMeta meta; string concertId; }
+
+  // ---- seat.commands (key = sectionId)
+  record HoldSeats     { EventMeta meta; string orderId; string buyerId; string concertId; string sectionId; array<string> seatIds; int holdSeconds; }
+  record ExtendHold    { EventMeta meta; string orderId; string concertId; string sectionId; int extraSeconds; }
+  record ConfirmSeats  { EventMeta meta; string orderId; string concertId; string sectionId; }
+  record ReleaseSeats  { EventMeta meta; string orderId; string concertId; string sectionId; string reason; }
+
+  // ---- seat.events (key = sectionId)
+  record SeatsHeld         { EventMeta meta; string orderId; string buyerId; string concertId; string sectionId; long heldUntilMs; array<SeatChange> changes; }
+  record SeatsRejected     { EventMeta meta; string orderId; string buyerId; string concertId; string sectionId; string reason; array<string> takenSeatIds; }
+  record SeatsHoldExtended { EventMeta meta; string orderId; string concertId; string sectionId; long heldUntilMs; }
+  record SeatsSold         { EventMeta meta; string orderId; string buyerId; string concertId; string sectionId; array<SeatChange> changes; }
+  record SeatsConfirmFailed{ EventMeta meta; string orderId; string concertId; string sectionId; string reason; }
+  record SeatsReleased     { EventMeta meta; string orderId; string concertId; string sectionId; string reason; array<SeatChange> changes; }
+
+  // ---- order.events (key = orderId)
+  record OrderPlaced        { EventMeta meta; string orderId; string buyerId; string nickname; string concertId; string sectionId; array<string> seatIds; int totalCents; string currency; }
+  record OrderStatusChanged { EventMeta meta; string orderId; string buyerId; string status; union { null, string } reason = null; union { null, long } heldUntilMs = null; }
+  record OrderConfirmed     { EventMeta meta; string orderId; string buyerId; string nickname; string concertId; string sectionId; array<string> seatIds; int totalCents; long placedAtMs; }
+
+  // ---- payment.commands / payment.events (key = orderId)
+  record RequestPayment  { EventMeta meta; string orderId; string buyerId; int amountCents; string currency; string method; }
+  record PaymentAuthorized { EventMeta meta; string orderId; string paymentId; int amountCents; }
+  record PaymentFailed   { EventMeta meta; string orderId; string reason; }
+  record RefundPayment   { EventMeta meta; string orderId; string paymentId; int amountCents; string reason; }
+  record PaymentRefunded { EventMeta meta; string orderId; string paymentId; }
+
+  // ---- ticket.events (key = orderId)
+  record TicketIssued { EventMeta meta; string ticketId; string orderId; string buyerId; string concertId; array<string> seatIds; string qrPayload; }
+
+  // ---- demo.control (key = resetId)
+  record ResetRequested { EventMeta meta; string resetId; }
+  record ResetCompleted { EventMeta meta; string resetId; string service; }
+}
