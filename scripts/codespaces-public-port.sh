@@ -19,10 +19,19 @@ if ! command -v gh >/dev/null 2>&1; then
   fi
   command -v gh >/dev/null 2>&1 || { echo "gh installation failed"; exit 1; }
 fi
-# Inside a Codespace the token with the right permission is GITHUB_CODESPACE_TOKEN.
-# GH_TOKEN (if set) takes precedence over GITHUB_TOKEN in gh, so clear it.
-TOKEN="${GITHUB_CODESPACE_TOKEN:-${GITHUB_TOKEN:-}}"
-[[ -n "${GITHUB_CODESPACE_TOKEN:-}" ]] || echo "⚠️  GITHUB_CODESPACE_TOKEN is not set; falling back to GITHUB_TOKEN (may lack permission)."
+# Token with the `codespace` scope. Order: CODESPACES_PAT env var (e.g. a Codespaces user secret),
+# interactive prompt (hidden input, never written to disk), then the Codespace's own token as a last resort.
+TOKEN="${CODESPACES_PAT:-}"
+if [[ -z "$TOKEN" && -t 0 && -t 1 ]]; then
+  echo "🔑 A GitHub token with the 'codespace' scope is needed to make port $PORT public."
+  echo "   Create one at https://github.com/settings/tokens/new?scopes=codespace&description=seatstorm-ports"
+  read -rsp "   Paste the token (input hidden; press Enter to skip and try the built-in token): " TOKEN; echo
+fi
+if [[ -z "$TOKEN" ]]; then
+  TOKEN="${GITHUB_CODESPACE_TOKEN:-${GITHUB_TOKEN:-}}"
+  echo "ℹ️  No token provided: using the Codespace's built-in token (may lack permission)."
+fi
+trap 'unset TOKEN' EXIT
 end=$((SECONDS+MAX)); last=""
 while (( SECONDS < end )); do
   if out=$(env -u GH_TOKEN GITHUB_TOKEN="$TOKEN" gh codespace ports visibility "${PORT}:public" -c "$CODESPACE_NAME" 2>&1); then
