@@ -15,7 +15,7 @@ QUARKUS_SVCS=(event-catalog order-service seat-inventory payment-sim ticketing s
 if [ "${SKIP_MAVEN:-0}" != 1 ]; then
   source scripts/ensure-java.sh
   echo ">> mvn package (all Quarkus services, tests skipped)"
-  ./mvnw -B -q -DskipTests package
+  ./mvnw -B -q -DskipTests clean package
 fi
 
 # Thin runtime image around the already-built fast-jar (avoids a Maven build inside Docker).
