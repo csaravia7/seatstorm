@@ -13,6 +13,7 @@ TAG="${TAG:-dev}"
 QUARKUS_SVCS=(event-catalog order-service seat-inventory payment-sim ticketing seatmap-query notification)
 
 if [ "${SKIP_MAVEN:-0}" != 1 ]; then
+  source scripts/ensure-java.sh
   echo ">> mvn package (all Quarkus services, tests skipped)"
   ./mvnw -B -q -DskipTests package
 fi
