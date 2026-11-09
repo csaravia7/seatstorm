@@ -31,8 +31,8 @@ done
 if [[ -n "${CODESPACE_NAME:-}" ]]; then
   URL="https://${CODESPACE_NAME}-8080.app.github.dev"
   # Make the audience port public so phones can open it (needs gh; ignore failures)
-  gh codespace ports visibility 8080:public -c "$CODESPACE_NAME" >/dev/null 2>&1 || \
-    echo "ℹ️  Port 8080 is PRIVATE by default. For the audience: Ports tab > 8080 > Port Visibility > Public (or: gh codespace ports visibility 8080:public -c $CODESPACE_NAME from your laptop). Resets on restart; change CONSOLE_PIN first."
+  scripts/codespaces-public-port.sh 8080 60 || \
+    echo "ℹ️  Make port 8080 Public: Ports tab > 8080 > Port Visibility > Public. Change CONSOLE_PIN first."
 else
   URL="http://localhost:8080"
 fi

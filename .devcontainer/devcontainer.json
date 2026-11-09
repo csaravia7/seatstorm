@@ -11,7 +11,8 @@
     },
     "ghcr.io/devcontainers/features/node:1": {
       "version": "22"
-    }
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "hostRequirements": {
     "cpus": 4,
@@ -53,5 +54,6 @@
         "dbaeumer.vscode-eslint"
       ]
     }
-  }
+  },
+  "postStartCommand": "nohup bash scripts/codespaces-public-port.sh 8080 900 > /tmp/public-port.log 2>&1 &"
 }
