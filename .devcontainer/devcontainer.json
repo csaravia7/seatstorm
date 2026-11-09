@@ -24,12 +24,10 @@
   "portsAttributes": {
     "8080": {
       "label": "SeatStorm",
-      "visibility": "public",
       "onAutoForward": "openBrowser"
     },
     "8085": {
-      "label": "Kafka UI",
-      "visibility": "private"
+      "label": "Kafka UI"
     }
   },
   "secrets": {
