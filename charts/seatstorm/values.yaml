@@ -12,7 +12,7 @@ common:
     QUERY_URL: http://seatmap-query:8080
   envFrom: [{ secretRef: { name: seatstorm-secrets } }]
 dbHost: postgres.seatstorm-platform.svc.cluster.local:5432
-llm: { provider: anthropic, fallbackProvider: "", maxRpm: "30", anthropicModel: claude-sonnet-5-5, nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1", nvidiaModel: openai/gpt-oss-20b, nvidiaTemperature: "1", nvidiaTopP: "1", nvidiaMaxTokens: "4096" }
+llm: { provider: anthropic, fallbackProvider: "", maxRpm: "30", firstTokenTimeoutS: "30", totalTimeoutS: "90", anthropicModel: claude-sonnet-5-5, nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1", nvidiaModel: openai/gpt-oss-20b, nvidiaTemperature: "1", nvidiaTopP: "1", nvidiaMaxTokens: "4096" }
 services:
   event-catalog:   { kind: quarkus, replicas: 1, db: catalog_db,   resources: { requests: { cpu: 50m,  memory: 96Mi  }, limits: { memory: 256Mi } } }
   order-service:   { kind: quarkus, replicas: 2, db: order_db,     resources: { requests: { cpu: 100m, memory: 96Mi  }, limits: { memory: 256Mi } } }

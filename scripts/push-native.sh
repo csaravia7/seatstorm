@@ -12,6 +12,7 @@
 #   PLATFORMS                default linux/amd64 (AKS x86 nodes). Use linux/arm64 for arm nodes.
 #   NATIVE_XMX               max heap for native-image (default 4g). Each native build needs ~6-8 GB of RAM in Docker.
 #   SKIP_OTHERS=1            do not build/push bff, bot-swarm, web, assistant-agent
+#   SEATSTORM_SERVICES       comma-separated subset to build (Quarkus and/or the other 4), e.g. "order-service,bff" (default: all 11)
 #   DRY_RUN=1                build only (loads into the local Docker, no login, no push) — use it to validate
 #   DT_ENV_URL + DT_API_TOKEN  Dynatrace GraalVM Native Image module (-Pdynatrace-native). Prompted for when missing
 #                            (Enter = skip); DT_SKIP=1 never asks. The token is hidden and sent as a BuildKit secret.
@@ -20,8 +21,21 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 ALL=(event-catalog order-service seat-inventory payment-sim ticketing seatmap-query notification)
-SERVICES=("$@"); [ ${#SERVICES[@]} -gt 0 ] || SERVICES=("${ALL[@]}")
-for s in "${SERVICES[@]}"; do
+OTHERS=(bff bot-swarm web assistant-agent)
+SERVICES=("$@"); OTHERS_WANTED=1
+if [ ${#SERVICES[@]} -eq 0 ]; then
+  if [ -n "${SEATSTORM_SERVICES:-}" ]; then   # subset from the guided script, e.g. "order-service,bff"
+    OTHERS_WANTED=""
+    for s in ${SEATSTORM_SERVICES//,/ }; do
+      case " ${ALL[*]} " in *" $s "*) SERVICES+=("$s");; *)
+        case " ${OTHERS[*]} " in *" $s "*) OTHERS_WANTED=1;; *) echo "ERROR: unknown service '$s' (valid: ${ALL[*]} ${OTHERS[*]})" >&2; exit 2;; esac;;
+      esac
+    done
+  else
+    SERVICES=("${ALL[@]}")
+  fi
+fi
+for s in ${SERVICES[@]+"${SERVICES[@]}"}; do
   [ -f "services/$s/src/main/docker/Dockerfile.native-micro" ] || { echo "ERROR: unknown Quarkus service '$s' (valid: ${ALL[*]})" >&2; exit 2; }
 done
 
@@ -71,7 +85,7 @@ fi
 # Asked for when missing and stdin is a terminal; press Enter to skip (the image is then built WITHOUT Dynatrace).
 #   DT_ENV_URL    environment URL, e.g. https://abc12345.live.dynatrace.com   (no trailing slash)
 #   DT_API_TOKEN  API token with the InstallerDownload scope (hidden input; passed to the build as a BuildKit secret)
-if [ -z "${DT_ENV_URL:-}${DT_API_TOKEN:-}" ] && [ -t 0 ] && [ -z "${DT_SKIP:-}" ]; then
+if [ ${#SERVICES[@]} -gt 0 ] && [ -z "${DT_ENV_URL:-}${DT_API_TOKEN:-}" ] && [ -t 0 ] && [ -z "${DT_SKIP:-}" ]; then
   echo ">> Dynatrace native module (optional): press Enter to build without it."
   read -rp "   DT_ENV_URL (e.g. https://abc12345.live.dynatrace.com): " DT_ENV_URL
   if [ -n "$DT_ENV_URL" ]; then read -rsp "   DT_API_TOKEN (InstallerDownload scope, hidden): " DT_API_TOKEN; echo; fi
@@ -88,7 +102,7 @@ else
   echo ">> Building WITHOUT the Dynatrace native module (set DT_ENV_URL + DT_API_TOKEN to enable it)"
 fi
 
-for s in "${SERVICES[@]}"; do
+for s in ${SERVICES[@]+"${SERVICES[@]}"}; do
   image="docker.io/${DOCKER_ID}/${s}:${TAG}"
   echo ">> [native] $image ($PLATFORMS, native-image xmx=$NATIVE_XMX) — takes several minutes"
   start=$SECONDS
@@ -99,13 +113,13 @@ for s in "${SERVICES[@]}"; do
   echo ">> done $s in $((SECONDS-start))s"
 done
 
-if [ -z "${SKIP_OTHERS:-}" ] && [ -z "$DRY_RUN" ]; then
+if [ -z "${SKIP_OTHERS:-}" ] && [ -n "$OTHERS_WANTED" ] && [ -z "$DRY_RUN" ]; then
   echo ">> building/pushing the non-Quarkus images (bff, bot-swarm, web, assistant-agent)"
-  DOCKER_ID="$DOCKER_ID" DOCKER_PAT="$DOCKER_PAT" IMAGE_TAG="$TAG" PLATFORMS="$PLATFORMS" k8s/scripts/build-push-dockerhub.sh
+  SEATSTORM_SERVICES="${SEATSTORM_SERVICES:-}" DOCKER_ID="$DOCKER_ID" DOCKER_PAT="$DOCKER_PAT" IMAGE_TAG="$TAG" PLATFORMS="$PLATFORMS" k8s/scripts/build-push-dockerhub.sh
 fi
 
 echo
 if [ -n "$DRY_RUN" ]; then echo "DRY_RUN finished: images are in the local Docker as docker.io/$DOCKER_ID/<svc>:$TAG"; else
-  echo "Published (native) with tag $TAG:"; for s in "${SERVICES[@]}"; do echo "  docker.io/$DOCKER_ID/$s:$TAG"; done
+  echo "Published (native) with tag $TAG:"; for s in ${SERVICES[@]+"${SERVICES[@]}"}; do echo "  docker.io/$DOCKER_ID/$s:$TAG"; done
   echo "Deploy: make k8s-deploy TAG=$TAG   (overlay aks = native memory limits)"
 fi

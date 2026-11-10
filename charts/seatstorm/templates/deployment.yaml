@@ -56,6 +56,8 @@ spec:
             - { name: LLM_PROVIDER, value: {{ $.Values.llm.provider | quote }} }
             - { name: LLM_FALLBACK_PROVIDER, value: {{ $.Values.llm.fallbackProvider | quote }} }
             - { name: LLM_MAX_RPM, value: {{ $.Values.llm.maxRpm | quote }} }
+            - { name: LLM_FIRST_TOKEN_TIMEOUT_S, value: {{ $.Values.llm.firstTokenTimeoutS | quote }} }
+            - { name: LLM_TOTAL_TIMEOUT_S, value: {{ $.Values.llm.totalTimeoutS | quote }} }
             - { name: ANTHROPIC_MODEL, value: {{ $.Values.llm.anthropicModel | quote }} }
             - { name: NVIDIA_BASE_URL, value: {{ $.Values.llm.nvidiaBaseUrl | quote }} }
             - { name: NVIDIA_MODEL, value: {{ $.Values.llm.nvidiaModel | quote }} }

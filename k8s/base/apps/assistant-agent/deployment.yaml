@@ -48,6 +48,10 @@ spec:
               value: ""
             - name: LLM_MAX_RPM
               value: "30"
+            - name: LLM_FIRST_TOKEN_TIMEOUT_S
+              value: "30"
+            - name: LLM_TOTAL_TIMEOUT_S
+              value: "90"
             - name: ANTHROPIC_MODEL
               value: "claude-sonnet-5-5"
             - name: NVIDIA_BASE_URL

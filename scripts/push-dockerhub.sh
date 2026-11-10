@@ -6,6 +6,7 @@
 # The PAT is only sent to `docker login --password-stdin`; it is never placed in arguments or printed.
 #   PLATFORMS   target architecture, default linux/amd64 (AKS x86 nodes), a single platform. Use linux/arm64 for arm nodes.
 #   DRY_RUN=1   build only: no login, no push (validates the whole build)
+#   SEATSTORM_SERVICES   comma-separated subset to build and push, e.g. "order-service,bff" (default: all 11)
 # Then deploy with the aks-jvm overlay:  OVERLAY=aks-jvm make k8s-deploy TAG=abc123
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -15,6 +16,13 @@ PLATFORMS="${PLATFORMS:-linux/amd64}"
 DRY_RUN="${DRY_RUN:-}"
 SVCS=(event-catalog order-service seat-inventory payment-sim ticketing seatmap-query notification
       assistant-agent bff bot-swarm web)
+if [ -n "${SEATSTORM_SERVICES:-}" ]; then   # optional subset, e.g. SEATSTORM_SERVICES="order-service,bff"
+  SEL=()
+  for s in ${SEATSTORM_SERVICES//,/ }; do
+    case " ${SVCS[*]} " in *" $s "*) SEL+=("$s");; *) echo "ERROR: unknown service '$s' (valid: ${SVCS[*]})" >&2; exit 2;; esac
+  done
+  SVCS=("${SEL[@]}")
+fi
 
 case "$PLATFORMS" in *,*) echo "ERROR: JVM images support a single platform (PLATFORMS=$PLATFORMS)" >&2; exit 2;; esac
 

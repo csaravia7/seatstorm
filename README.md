@@ -121,18 +121,21 @@ It asks, in this order (export a variable beforehand to skip its question):
 | Prompt | What to enter |
 |---|---|
 | Image type | **1** ⚡ native GraalVM *(recommended: tiny, starts in ~0.1 s; ~4 min per service, ~8 GB RAM for Docker, linux/amd64 machine such as the Codespace)* · **2** 🚀 JVM *(fast to build; deploy with `OVERLAY=aks-jvm`)* |
+| Services | **1** all 11 *(default)* · **2** service by service (a `Build <service>? [Y/n]` question for each: `event-catalog`, `order-service`, `seat-inventory`, `payment-sim`, `ticketing`, `seatmap-query`, `notification`, `assistant-agent`, `bff`, `bot-swarm`, `web`) |
 | Image tag | **Enter** for `latest`, or a version like `v1.0.0` |
 | `DOCKER_ID` | Your Docker Hub username |
 | `DOCKER_PAT` *(hidden)* | Docker Hub access token with Read & Write |
 | `DT_ENV_URL` *(native only)* | Your Dynatrace URL, e.g. `https://abc12345.live.dynatrace.com` — **Enter** to build without Dynatrace |
 | `DT_API_TOKEN` *(hidden)* | Dynatrace API token, scope `InstallerDownload` (only if you gave the URL) |
 
-After a summary and a confirmation it builds and pushes the **11 images** (7 Quarkus services + `bff`, `bot-swarm`, `web`, `assistant-agent`) as `docker.io/<DOCKER_ID>/<service>:<tag>`, and prints the next command.
+After a summary and a confirmation it builds and pushes the **selected images** (by default the **11**: 7 Quarkus services + `bff`, `bot-swarm`, `web`, `assistant-agent`) as `docker.io/<DOCKER_ID>/<service>:<tag>`, and prints the next command. Rebuilt only one service? Redeploy it with `kubectl rollout restart deploy/<service> -n seatstorm`.
 
 ```bash
 scripts/build-push-dockerhub.sh --native --tag v1.0.0 --yes    # no questions (export DOCKER_ID / DOCKER_PAT first)
 scripts/build-push-dockerhub.sh --jvm                          # JVM images
 scripts/build-push-dockerhub.sh --jvm --dry-run                # build only: no login, nothing is pushed (validates the build)
+scripts/build-push-dockerhub.sh --native --services order-service,bff   # only these services (no question)
+scripts/build-push-dockerhub.sh --all                          # all 11 services (no question)
 PLATFORMS=linux/arm64 scripts/build-push-dockerhub.sh --jvm    # arm64 nodes (default: linux/amd64, what AKS uses)
 ```
 
@@ -181,6 +184,8 @@ kubectl logs deploy/seat-inventory -n seatstorm --tail=50
 | Native build killed / very slow | Give Docker ≥ 8 GB (`NATIVE_XMX=3g`), build on linux/amd64 (the Codespace) |
 | Web shows `EXTERNAL-IP <pending>` | Wait ~2 min for the Azure load balancer |
 | Redeploy with `latest` shows old code | `make k8s-deploy` already forces `imagePullPolicy: Always` + a rollout restart |
+| Chat answers "Estoy tardando más de lo normal" | The model took too long for the first text token (`kubectl logs deploy/assistant-agent -n seatstorm -c assistant-agent \| grep provider_error` shows `no first token`). Reasoning models (NVIDIA `openai/gpt-oss-20b`) think before answering. Raise `LLM_FIRST_TOKEN_TIMEOUT_S` (default in the manifests: 30) or set a faster, non-reasoning `NVIDIA_MODEL`. Quick test: `kubectl set env deploy/assistant-agent -n seatstorm LLM_FIRST_TOKEN_TIMEOUT_S=60` |
+| Chat answers "Ahora mismo no puedo responder con la IA" | No provider/key match or a provider error (401 key, 404 model, 429 rate limit). Check `kubectl exec deploy/assistant-agent -n seatstorm -c assistant-agent -- sh -c 'echo $LLM_PROVIDER'` and the same logs. Giving only `NVIDIA_API_KEY` selects `nvidia` automatically |
 
 > 💡 For a reproducible demo, deploy a fixed version (`TAG=v1.0.0`) instead of `latest`.
 > ⚠️ Use **either** Kustomize (`make k8s-deploy`) **or** Helm (`make aks-deploy`) on a given cluster, never both.

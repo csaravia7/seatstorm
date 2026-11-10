@@ -23,9 +23,12 @@ else
 fi
 
 # nombre | contexto | Dockerfile  (igual que release.yaml)
+# SEATSTORM_SERVICES (coma-separado) limita las que se construyen; vacio = las 4.
+want() { local s; [ -n "${SEATSTORM_SERVICES:-}" ] || return 0; for s in ${SEATSTORM_SERVICES//,/ }; do [ "$s" = "$1" ] && return 0; done; return 1; }
 for spec in "bff|web/bff|web/bff/Dockerfile" "bot-swarm|web/bots|web/bots/Dockerfile" \
             "web|web|web/Dockerfile" "assistant-agent|.|services/assistant-agent/Dockerfile"; do
   IFS='|' read -r name ctx file <<<"$spec"
+  want "$name" || continue
   echo ">> docker.io/${DOCKER_ID}/${name}:${IMAGE_TAG} (${PLATFORMS})"
   docker buildx build --builder "$BUILDER" --platform "$PLATFORMS" -f "$file" \
     -t "docker.io/${DOCKER_ID}/${name}:${IMAGE_TAG}" --push "$ctx"

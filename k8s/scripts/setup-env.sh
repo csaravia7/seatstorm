@@ -48,11 +48,13 @@ _ss_ask() {
 }
 
 # Secretos generados: reutiliza los del clúster, si no, crea valores aleatorios.
+# DB_PASSWORD se reutiliza SIEMPRE que el clúster ya lo tenga (incluso el valor por defecto "seatstorm"): Postgres solo
+# aplica POSTGRES_PASSWORD al crear el PVC, y cambiarlo despues rompe la autenticacion de todos los servicios.
 _ss_gen() { # VAR longitud
   local var="$1" len="$2" v
   if [ -z "${!var:-}" ] || _ss_placeholder "${!var}"; then
     v="$(_ss_cluster "$var" || true)"
-    if [ -n "$v" ] && ! _ss_placeholder "$v"; then export "$var=$v"; echo "  $var: reutilizado del clúster"
+    if [ -n "$v" ] && { ! _ss_placeholder "$v" || [ "$var" = DB_PASSWORD ]; }; then export "$var=$v"; echo "  $var: reutilizado del clúster"
     elif [ "$_ss_check" = 1 ]; then echo "SE GENERARA  $var"
     else export "$var=$(_ss_rand "$len")"; echo "  $var: generado aleatoriamente"; fi
   fi
