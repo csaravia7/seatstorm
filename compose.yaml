@@ -38,6 +38,8 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_LOG_RETENTION_HOURS: 24
+      # Sin esto el broker escribe en /tmp/kafka-logs (efimero) y el volumen kafkadata no se usa: los topics se pierden al recrear el contenedor.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
     healthcheck:
       test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
       interval: 10s

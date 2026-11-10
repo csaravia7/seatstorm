@@ -44,6 +44,8 @@ spec:
             - { name: KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS, value: "0" }
             - { name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "false" }
             - { name: KAFKA_LOG_RETENTION_HOURS, value: "24" }
+            # Sin esto el broker escribe en /tmp/kafka-logs (efimero) y el PVC montado abajo no se usa: los topics se pierden al recrear el pod.
+            - { name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data }
           resources:
             requests:
               cpu: 250m
