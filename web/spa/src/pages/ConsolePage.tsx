@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/endpoints';
 import { ApiError } from '../api/client';
+import { MAX_CONCERT_NAME, useConcertName, useConcertStore } from '../state/concertStore';
 import type { BotStatus, PaymentConfig } from '../api/types';
 
 const errText = (e: unknown) => (e instanceof ApiError ? e.message : 'No hay respuesta del servidor.');
@@ -30,6 +31,51 @@ function Login({ onOk }: { onOk: () => void }) {
         <button type="submit" className="btn btn-primary">Entrar</button>
       </form>
     </main>
+  );
+}
+
+function EventPanel() {
+  const current = useConcertName();
+  const [name, setName] = useState(current);
+  const [msg, setMsg] = useState('');
+  const [dirty, setDirty] = useState(false);
+  // Follow the server value until the presenter starts typing.
+  useEffect(() => {
+    if (!dirty) setName(current);
+  }, [current, dirty]);
+  const save = async () => {
+    const value = name.trim().replace(/\s+/g, ' ');
+    if (!value) {
+      setMsg('El nombre no puede estar vacío.');
+      return;
+    }
+    try {
+      const saved = await api.renameConcert(value);
+      useConcertStore.getState().setName(saved.name);
+      setDirty(false);
+      setMsg('Nombre actualizado');
+    } catch (e) {
+      setMsg(errText(e));
+    }
+  };
+  return (
+    <section className="panel" aria-label="Evento">
+      <h2>Evento</h2>
+      <form
+        className="panel-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <label htmlFor="event-name">Nombre del evento
+          <input id="event-name" value={name} maxLength={MAX_CONCERT_NAME} autoComplete="off"
+            onChange={(e) => { setName(e.target.value); setDirty(true); }} />
+        </label>
+        <button type="submit" className="btn btn-primary" disabled={!dirty}>Guardar</button>
+      </form>
+      <p role="status" className="muted">{msg}</p>
+    </section>
   );
 }
 
@@ -201,14 +247,17 @@ function LinksPanel() {
 }
 
 export function ConsolePage() {
+  const concertName = useConcertName();
   const qc = useQueryClient();
   const { data, isPending, refetch } = useQuery({ queryKey: ['admin-me'], queryFn: () => api.adminMe().then(() => true).catch(() => false), retry: false });
   if (isPending) return <main className="screen screen-center"><div className="spinner" /></main>;
   if (!data) return <Login onOk={() => { void qc.invalidateQueries({ queryKey: ['admin-me'] }); void refetch(); }} />;
   return (
     <main className="console">
-      <h1>Consola del presentador</h1>
+      <h1 className="brand">{concertName}</h1>
+      <p className="muted">Consola del presentador</p>
       <div className="panels">
+        <EventPanel />
         <SalePanel />
         <PaymentPanel />
         <BotsPanel />

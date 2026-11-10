@@ -8,6 +8,7 @@ import { Countdown, useSecondsLeft } from '../components/Countdown';
 import { ChatWidget } from '../components/Chat';
 import { ToastHost } from '../components/Toast';
 import { useLive } from '../live/useLive';
+import { useConcertName } from '../state/concertStore';
 import { useMapStore } from '../state/mapStore';
 import { usePurchaseStore } from '../state/purchaseStore';
 import { buy, cancel, fetchTicket, handleMe, pay, restoreActiveOrder, startOrderWatcher } from '../state/flow';
@@ -20,6 +21,7 @@ const NICK_RE = /^[A-Za-z0-9_-]{3,16}$/;
 
 export function JoinScreen() {
   const setMe = usePurchaseStore((s) => s.setMe);
+  const concertName = useConcertName();
   const [nick, setNick] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,8 +45,8 @@ export function JoinScreen() {
 
   return (
     <main className="screen screen-center">
-      <h1 className="brand">Neon Tide</h1>
-      <p className="muted">Arena Norte · 360 asientos · una sola noche</p>
+      <h1 className="brand">{concertName}</h1>
+      <p className="muted">360 asientos · una sola noche</p>
       <form className="card" onSubmit={submit} noValidate>
         <label htmlFor="nick">Elige tu apodo</label>
         <input
@@ -66,8 +68,10 @@ export function JoinScreen() {
 }
 
 function WaitingRoom() {
+  const concertName = useConcertName();
   return (
     <main className="screen screen-center">
+      <p className="event-name">{concertName}</p>
       <div className="pulse" aria-hidden="true" />
       <h1>La venta abre pronto</h1>
       <p className="muted">Mantén esta pantalla abierta. Te avisaremos en cuanto abramos.</p>
@@ -94,6 +98,7 @@ function Spinner({ text }: { text: string }) {
 }
 
 function HeldScreen() {
+  const concertName = useConcertName();
   const order = usePurchaseStore((s) => s.order)!;
   const patch = usePurchaseStore((s) => s.patchOrder);
   const [busy, setBusy] = useState(false);
@@ -103,6 +108,7 @@ function HeldScreen() {
   });
   return (
     <main className="screen screen-center">
+      <p className="event-name">{concertName}</p>
       <h1>Tus asientos están retenidos</h1>
       <Countdown untilMs={order.heldUntilMs} />
       <p>{sectionLabel(order.sectionId)} · {order.seatIds.map((s) => parseSeatId(s)?.row + String(parseSeatId(s)?.number).padStart(2, '0')).join(', ')}</p>
@@ -127,6 +133,7 @@ function HeldScreen() {
 }
 
 function TicketScreen({ onDone }: { onDone: () => void }) {
+  const concertName = useConcertName();
   const order = usePurchaseStore((s) => s.order)!;
   const [qr, setQr] = useState<string | null>(null);
   useEffect(() => {
@@ -136,7 +143,7 @@ function TicketScreen({ onDone }: { onDone: () => void }) {
   return (
     <main className="screen screen-center ticket">
       <h1>¡Listo! Tu entrada</h1>
-      <p className="muted">Neon Tide · Arena Norte</p>
+      <p className="event-name">{concertName}</p>
       <p>{sectionLabel(order.sectionId)}</p>
       <p className="seats">{order.seatIds.map((s) => `${parseSeatId(s)?.row}${String(parseSeatId(s)?.number).padStart(2, '0')}`).join(' · ')}</p>
       <p className="total">{money(order.totalCents)}</p>
@@ -164,11 +171,13 @@ function MapScreen() {
   const me = usePurchaseStore((s) => s.me);
   const connected = useMapStore((s) => s.connected);
   const mine = useMemo(() => new Set(selection.seatIds), [selection.seatIds]);
+  const concertName = useConcertName();
 
   return (
     <main className="screen map-screen">
       <header className="topbar">
-        <span>Hola, <strong>{me?.nickname}</strong></span>
+        <h1 className="event-title">{concertName}</h1>
+        <span className="who">Hola, <strong>{me?.nickname}</strong></span>
         {!connected && <span className="badge badge-warn">Reconectando…</span>}
       </header>
       {notice && (

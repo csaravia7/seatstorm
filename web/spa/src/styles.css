@@ -15,6 +15,7 @@
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 * { box-sizing: border-box; }
+html { font-size: clamp(16px, 0.55vw + 9px, 22px); }
 html, body, #root { height: 100%; }
 body { margin: 0; background: radial-gradient(1200px 600px at 50% -10%, #2a1a5a 0%, var(--bg) 60%); color: var(--text); font-family: var(--font); -webkit-tap-highlight-color: transparent; }
 h1, h2 { margin: 0.2em 0; }
@@ -27,8 +28,11 @@ a { color: var(--accent); }
 .error { color: #ff8a96; margin: 0.4rem 0; }
 
 .screen { min-height: 100%; padding: 16px 16px 120px; max-width: 560px; margin: 0 auto; }
+.map-screen { max-width: min(1280px, 100%); display: flex; flex-direction: column; align-items: center; }
+.map-screen > * { width: 100%; }
+.map-screen .section-detail { max-width: 640px; }
 .screen-center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding-bottom: 32px; }
-.brand { font-size: 2rem; letter-spacing: 0.04em; background: linear-gradient(90deg, #3ddc97, #b05cff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand { font-size: clamp(1.5rem, 4vw, 2.6rem); overflow-wrap: anywhere; letter-spacing: 0.04em; background: linear-gradient(90deg, #3ddc97, #b05cff); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .card, .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; width: 100%; text-align: left; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 0.95rem; color: var(--muted); }
 input, select { min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); padding: 0 12px; font-size: 1rem; font-family: inherit; }
@@ -43,14 +47,18 @@ input[type='range'] { padding: 0; }
 .seg { display: flex; gap: 8px; flex-wrap: wrap; }
 .chip { min-height: 44px; border-radius: 22px; border: 1px solid var(--line); background: var(--bg-2); color: var(--text); padding: 0 14px; text-align: left; cursor: pointer; font-family: inherit; }
 
-.topbar { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; min-height: 44px; }
+.event-title { margin: 0; font-size: clamp(1.15rem, 2.4vw, 1.8rem); flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
+.event-name { margin: 0; font-weight: 700; color: var(--text); font-size: clamp(1.1rem, 3vw, 1.6rem); overflow-wrap: anywhere; }
+.who { color: var(--muted); }
 .badge { padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; }
 .badge-warn { background: #5a3d00; color: #ffd27a; }
 .notice { background: #3a1830; border: 1px solid #7a2c5e; border-radius: var(--radius); padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 0; }
 
 /* Map */
-.seatmap { width: 100%; height: auto; max-height: 70vh; display: block; margin: 0 auto; }
-.seatmap-large { max-height: 100%; height: 100%; }
+/* The map fills the available width but never exceeds the viewport height, so seats scale up on big monitors. */
+.seatmap { width: min(100%, max(320px, calc(100vh - 190px))); width: min(100%, max(320px, calc(100dvh - 190px))); height: auto; display: block; margin: 0 auto; }
+.seatmap-large { width: 100%; max-height: 100%; height: 100%; }
 .seat { stroke: rgba(0, 0, 0, 0.35); stroke-width: 0.5; transition: fill 0.25s; }
 .seat-available { fill: var(--available); }
 .seat-held { fill: var(--held); }
@@ -119,12 +127,12 @@ input[type='range'] { padding: 0; }
 
 /* Stage */
 .stage { height: 100vh; display: flex; flex-direction: column; padding: 16px 24px; gap: 12px; }
-.stage-head { display: flex; align-items: center; gap: 24px; }
-.stage-head .brand { flex: 1; margin: 0; font-size: 2.4rem; }
+.stage-head { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+.stage-head .brand { flex: 1; margin: 0; font-size: clamp(1.6rem, 3.4vw, 3.4rem); }
 .sale-banner { padding: 10px 24px; border-radius: 999px; font-weight: 800; font-size: 1.4rem; letter-spacing: 0.1em; }
 .sale-open { background: #0f5a36; color: #8affc4; }
 .sale-closed { background: #5a1a22; color: #ffb3bc; }
-.stage-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; min-height: 0; }
+.stage-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 24vw, 520px); gap: 24px; min-height: 0; }
 .stage-map { position: relative; min-height: 0; }
 .stage-side { display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
 .counters { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -144,3 +152,32 @@ input[type='range'] { padding: 0; }
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
 .links { margin: 0; padding-left: 18px; }
 progress { width: 100%; height: 16px; }
+
+.panel-form { display: flex; flex-direction: column; gap: 10px; }
+
+/* Responsive */
+@media (min-width: 720px) {
+  .chat-panel { left: auto; right: 20px; bottom: 20px; top: auto; width: 420px; height: min(640px, 80vh); border-radius: 18px; border: 1px solid var(--line); margin: 0; }
+  .chat-fab { right: 20px; }
+  .buybar { justify-content: center; }
+  .buybar > div:first-child { flex: 0 1 auto; }
+}
+@media (min-width: 1100px) {
+  .screen-center:not(.map-screen) { max-width: 720px; }
+  .chat-panel { width: 460px; }
+}
+@media (max-width: 900px) {
+  .stage { height: auto; min-height: 100vh; padding: 12px; }
+  .stage-body { grid-template-columns: 1fr; }
+  .stage-map { height: auto; }
+  .seatmap-large { height: auto; max-height: none; }
+  .stage-side { overflow: visible; }
+  .sale-banner { font-size: 1rem; padding: 8px 16px; }
+  .counter span { font-size: 2rem; }
+}
+@media (max-width: 480px) {
+  .screen { padding: 12px 12px 120px; }
+  .overlay .countdown-n { font-size: 6rem; }
+  .countdown-n { font-size: 3.5rem; }
+  .actions .btn { flex: 1 1 auto; }
+}

@@ -316,3 +316,12 @@ async def test_no_evals_when_guardrails_off(spans, mock):
     await _chat(tele, "hola", settings=make_settings(guardrails_mode="off"))
     root = _by_name(exp)["assistant.chat"].attributes
     assert not _evals(root) and T.CONTEXT not in root
+
+
+async def test_telemetry_failure_never_hangs_the_chat(spans, mock, monkeypatch):
+    """If building span attributes blows up, the chat must still answer and close the stream."""
+    tele, exp = spans
+    monkeypatch.setattr(T, "evaluation_attributes", lambda evals: (_ for _ in ()).throw(RuntimeError("boom")))
+    mock.post(ANTHROPIC_URL).mock(return_value=anthropic_text("Hola. "))
+    text = await _chat(tele, "hola")
+    assert "event: done" in text

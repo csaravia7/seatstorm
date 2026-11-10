@@ -3,10 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PublicPage } from './pages/PublicPage';
 import { StagePage } from './pages/StagePage';
 import { ConsolePage } from './pages/ConsolePage';
+import { useConcertSync } from './state/concertStore';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } });
 
 export function App() {
+  useConcertSync();
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

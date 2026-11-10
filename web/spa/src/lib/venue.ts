@@ -38,7 +38,7 @@ export const VIEW = 1000;
 const CX = 500;
 const CY = 500;
 const ROW_RADIUS = [300, 336, 372];
-const SEAT_SIZE = 11;
+const SEAT_SIZE = 12.5;
 const SECTION_SPAN = 30; // degrees
 const SECTION_GAP = 4;
 

@@ -78,6 +78,25 @@ class CatalogTest {
     }
 
     @Test
+    void renameConcertValidatesAndPersists() {
+        String original = given().get("/api/concert").then().extract().path("name");
+        try {
+            given().contentType("application/json").body("{\"name\":\"x\"}").put("/admin/concert").then().statusCode(401);
+            given().header("X-Admin-Token", TOKEN).contentType("application/json").body("{\"name\":\"   \"}")
+                    .put("/admin/concert").then().statusCode(400).body("code", is("VALIDATION_ERROR"));
+            given().header("X-Admin-Token", TOKEN).contentType("application/json")
+                    .body("{\"name\":\"" + "a".repeat(81) + "\"}").put("/admin/concert").then().statusCode(400);
+            given().header("X-Admin-Token", TOKEN).contentType("application/json")
+                    .body("{\"name\":\"  Mi   Evento  \"}").put("/admin/concert").then().statusCode(200)
+                    .body("name", is("Mi Evento"));
+            given().get("/api/concert").then().body("name", is("Mi Evento"));
+        } finally {
+            given().header("X-Admin-Token", TOKEN).contentType("application/json")
+                    .body("{\"name\":\"" + original + "\"}").put("/admin/concert");
+        }
+    }
+
+    @Test
     @Order(3)
     void openAndCloseSaleArePublishedOnceAndIdempotent() {
         try (KafkaCompanion kc = new KafkaCompanion(TestSupport.bootstrap())) {

@@ -41,6 +41,10 @@ export function adminRoutes(app: FastifyInstance, ctx: Ctx): void {
       );
     }
 
+    guarded.put('/admin/concert', (req, reply) =>
+      relay(reply, up.call(`${cfg.catalogUrl}/admin/concert`, { method: 'PUT', headers: adm, body: req.body ?? {} })),
+    );
+
     guarded.get('/admin/payment', (_req, reply) => relay(reply, up.call(`${cfg.paymentUrl}/admin/mode`, { headers: adm })));
     guarded.put('/admin/payment', (req, reply) =>
       relay(reply, up.call(`${cfg.paymentUrl}/admin/mode`, { method: 'PUT', headers: adm, body: req.body ?? {} })),

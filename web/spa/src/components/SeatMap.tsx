@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { useMapStore } from '../state/mapStore';
+import { useConcertName } from '../state/concertStore';
 import { STAGE_CENTER, VENUE_SECTIONS, VIEW, labelPos, seatAriaLabel, sectionSeatPositions, type SeatPos } from '../lib/venue';
 
 const SectionSeats = VENUE_SECTIONS.map((s) => ({ section: s, seats: sectionSeatPositions(s) }));
@@ -35,13 +36,14 @@ export interface SeatMapProps {
 const EMPTY: ReadonlySet<string> = new Set();
 
 export function SeatMap({ mine = EMPTY, onSectionClick, activeSection, large }: SeatMapProps) {
+  const concertName = useConcertName();
   const labels = useMemo(() => VENUE_SECTIONS.map((s) => ({ s, ...labelPos(s.index) })), []);
   return (
     <svg
       className={`seatmap${large ? ' seatmap-large' : ''}`}
       viewBox={`0 0 ${VIEW} ${VIEW}`}
       role="group"
-      aria-label="Mapa del recinto Neon Tide · Arena Norte"
+      aria-label={`Mapa del recinto ${concertName}`}
     >
       <circle cx={STAGE_CENTER.x} cy={STAGE_CENTER.y} r={210} className="stage-ring" />
       <rect x={STAGE_CENTER.x - 110} y={STAGE_CENTER.y - 55} width={220} height={110} rx={14} className="stage-box" />

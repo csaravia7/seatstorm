@@ -144,7 +144,7 @@ describe('admin', () => {
   it('guards /admin/* and forwards with X-Admin-Token', async () => {
     const { app, calls } = await makeApp(() => json({ ok: true }, 202));
     for (const [method, url] of [
-      ['POST', '/admin/sale/open'], ['PUT', '/admin/payment'], ['POST', '/admin/reset'],
+      ['POST', '/admin/sale/open'], ['PUT', '/admin/concert'], ['PUT', '/admin/payment'], ['POST', '/admin/reset'],
       ['GET', '/admin/reset/r1'], ['POST', '/admin/bots/start'], ['GET', '/admin/bots/status'],
     ] as const) {
       expect((await app.inject({ method, url, payload: method === 'GET' ? undefined : {} })).statusCode, url).toBe(401);
@@ -154,6 +154,7 @@ describe('admin', () => {
     const go = (method: 'POST' | 'PUT' | 'GET', url: string, payload?: object) =>
       app.inject({ method, url, headers: { cookie }, payload });
     await go('POST', '/admin/sale/open');
+    await go('PUT', '/admin/concert', { name: 'Otro evento' });
     await go('PUT', '/admin/payment', { mode: 'PAUSED' });
     await go('POST', '/admin/reset');
     await go('GET', '/admin/reset/r1');
@@ -161,6 +162,7 @@ describe('admin', () => {
     await go('GET', '/admin/bots/status');
     expect(calls.map((c) => c.url)).toEqual([
       'http://localhost:8106/admin/sale/open',
+      'http://localhost:8106/admin/concert',
       'http://localhost:8103/admin/mode',
       'http://localhost:8106/admin/reset',
       'http://localhost:8106/admin/reset/r1',

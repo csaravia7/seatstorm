@@ -90,19 +90,25 @@ class Agent:
                 span.record_exception(exc)
                 await q.put(("error", SLOW_TEXT))
             finally:
-                span.set_attributes({
-                    T.INPUT_VALUE: turn["input"], T.OUTPUT_VALUE: turn["output"],
-                    "assistant.outcome": turn["outcome"],
-                    T.METADATA: json.dumps({"outcome": turn["outcome"], "guardrails_mode": self.s.guardrails_mode,
-                                            "guardrails_triggered": turn["guardrails"],
-                                            "provider": self.s.llm_provider}),
-                })
-                span.set_attributes(T.evaluation_attributes(T.build_evaluations(turn, self.s.guardrails_mode)))
-                if turn["context"]:
-                    span.set_attribute(T.CONTEXT, turn["context"][:T.MAX_CONTEXT_CHARS])
-                if turn["outcome"] in ("error", "provider_error"):
-                    span.set_status(Status(StatusCode.ERROR, turn["outcome"]))
+                try:
+                    self._finish_turn_span(span, turn)
+                except Exception:  # noqa: BLE001 - telemetry must never break (or hang) the chat
+                    log.warning("turn_span_attributes_failed", exc_info=True)
                 await q.put(None)
+
+    def _finish_turn_span(self, span, turn: dict) -> None:
+        span.set_attributes({
+            T.INPUT_VALUE: turn["input"], T.OUTPUT_VALUE: turn["output"],
+            "assistant.outcome": turn["outcome"],
+            T.METADATA: json.dumps({"outcome": turn["outcome"], "guardrails_mode": self.s.guardrails_mode,
+                                    "guardrails_triggered": turn["guardrails"],
+                                    "provider": self.s.llm_provider}),
+        })
+        span.set_attributes(T.evaluation_attributes(T.build_evaluations(turn, self.s.guardrails_mode)))
+        if turn["context"]:
+            span.set_attribute(T.CONTEXT, turn["context"][:T.MAX_CONTEXT_CHARS])
+        if turn["outcome"] in ("error", "provider_error"):
+            span.set_status(Status(StatusCode.ERROR, turn["outcome"]))
 
     def _guardrail_span(self, name: str, attrs: dict) -> None:
         """Short GUARDRAIL span so each check shows up (pass or fail) in the trace and can feed Arize evals."""

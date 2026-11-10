@@ -68,6 +68,18 @@ public class CatalogService {
         return rows.get(0);
     }
 
+    public static final int MAX_NAME = 80;
+
+    @Transactional
+    public void rename(String raw) {
+        String name = raw == null ? "" : raw.strip().replaceAll("\\s+", " ");
+        if (name.isEmpty() || name.length() > MAX_NAME) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "El nombre debe tener entre 1 y " + MAX_NAME + " caracteres.");
+        }
+        em.createNativeQuery("update concert set name = ?1 where concert_id = ?2")
+                .setParameter(1, name).setParameter(2, VenueLayout.CONCERT_ID).executeUpdate();
+    }
+
     /** Idempotent: no event when the sale is already in the requested state. */
     @Transactional
     public boolean setSale(boolean open) {

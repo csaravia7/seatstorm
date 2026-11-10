@@ -15,6 +15,8 @@ export const api = {
   createSession: (nickname: string) => request<Me>('POST', '/api/session', { nickname }),
   me: () => request<Me>('GET', '/api/me'),
   config: () => request<{ kafkaUiUrl: string; dynatraceUrl: string }>('GET', '/api/config'),
+  concert: () => request<{ concertId: string; name: string; venue: string }>('GET', '/api/concert'),
+  renameConcert: (name: string) => request<{ name: string }>('PUT', '/admin/concert', { name }),
   seatmap: () => request<SeatmapDto>('GET', `/api/seatmap?concertId=${CONCERT_ID}`),
   stats: () => request<StatsDto>('GET', `/api/stats?concertId=${CONCERT_ID}`),
   leaderboard: () => request<LeaderboardRow[]>('GET', `/api/leaderboard?concertId=${CONCERT_ID}&limit=5`),

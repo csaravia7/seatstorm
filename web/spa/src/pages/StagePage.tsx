@@ -6,10 +6,12 @@ import { Countdown } from '../components/Countdown';
 import { useLive } from '../live/useLive';
 import { syncSeatmap } from '../live/sync';
 import { countSeats, useMapStore } from '../state/mapStore';
+import { useConcertName } from '../state/concertStore';
 import { clockTime, formatDuration } from '../lib/format';
 
 export function StagePage() {
   useLive('stage');
+  const concertName = useConcertName();
   const seats = useMapStore((s) => s.seats);
   const sale = useMapStore((s) => s.saleStatus);
   const openingUntil = useMapStore((s) => s.openingUntil);
@@ -52,7 +54,7 @@ export function StagePage() {
   return (
     <div className="stage">
       <header className="stage-head">
-        <h1 className="brand">Neon Tide · Arena Norte</h1>
+        <h1 className="brand">{concertName}</h1>
         <div className={`sale-banner ${sale === 'OPEN' ? 'sale-open' : 'sale-closed'}`} role="status">
           {sale === 'OPEN' ? 'VENTA ABIERTA' : sale === 'CLOSED' ? 'VENTA CERRADA' : '…'}
         </div>
