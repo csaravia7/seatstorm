@@ -45,7 +45,8 @@ spec:
             - { name: KAFKA_AUTO_CREATE_TOPICS_ENABLE, value: "false" }
             - { name: KAFKA_LOG_RETENTION_HOURS, value: "24" }
             # Sin esto el broker escribe en /tmp/kafka-logs (efimero) y el PVC montado abajo no se usa: los topics se pierden al recrear el pod.
-            - { name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data }
+            # Subdirectorio: la raiz del disco ext4 (AKS) contiene lost+found y Kafka aborta al tomarlo por una particion.
+            - { name: KAFKA_LOG_DIRS, value: /var/lib/kafka/data/logs }
           resources:
             requests:
               cpu: 250m
