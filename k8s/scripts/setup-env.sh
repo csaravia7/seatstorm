@@ -73,6 +73,15 @@ echo "Asistente de chat (opcional; sin clave responde un texto de respaldo):"
 _ss_ask ANTHROPIC_API_KEY "ANTHROPIC_API_KEY" secret opcional
 _ss_ask NVIDIA_API_KEY    "NVIDIA_API_KEY (alternativa gratuita)" secret opcional
 echo
+echo "Arize AX — trazas del asistente (opcional; sin SPACE_ID y API_KEY no se exporta nada):"
+echo "  Space ID y API key: Arize > Settings. Si pegaste la key en algun chat, rotala antes."
+_ss_ask ARIZE_SPACE_ID  "ARIZE_SPACE_ID" plain opcional
+if [ -n "${ARIZE_SPACE_ID:-}" ]; then
+  _ss_ask ARIZE_API_KEY "ARIZE_API_KEY" secret requerido
+  _ss_ask ARIZE_OTLP_ENDPOINT "ARIZE_OTLP_ENDPOINT" plain opcional "https://otlp.arize.com/v1"
+  _ss_ask ARIZE_PROJECT_NAME  "ARIZE_PROJECT_NAME" plain opcional "seatstorm-assistant"
+fi
+echo
 echo "Seguridad de la demo:"
 _ss_gen DB_PASSWORD 24
 _ss_gen ADMIN_TOKEN 32
@@ -85,7 +94,7 @@ if [ -z "${CONSOLE_PIN:-}" ] || [ "${CONSOLE_PIN:-}" = 4321 ]; then
   _ss_ask CONSOLE_PIN "PIN de la consola del presentador" plain requerido "$_pin"
 fi
 
-export DOCKER_ID DOCKER_PAT ANTHROPIC_API_KEY NVIDIA_API_KEY DB_PASSWORD ADMIN_TOKEN SESSION_SECRET TICKET_SECRET CONSOLE_PIN
+export DOCKER_ID DOCKER_PAT ANTHROPIC_API_KEY NVIDIA_API_KEY ARIZE_SPACE_ID ARIZE_API_KEY ARIZE_OTLP_ENDPOINT ARIZE_PROJECT_NAME DB_PASSWORD ADMIN_TOKEN SESSION_SECRET TICKET_SECRET CONSOLE_PIN
 if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -n "${NVIDIA_API_KEY:-}" ]; then export LLM_PROVIDER="${LLM_PROVIDER:-nvidia}"; fi
 echo
 echo "==> Listo. PIN de la consola: ${CONSOLE_PIN:-?}"

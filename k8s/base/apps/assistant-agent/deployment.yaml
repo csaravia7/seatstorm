@@ -49,11 +49,8 @@ spec:
             # Guardrails del chat: enforce (bloquea/redacta) | monitor (solo registra) | off
             - name: GUARDRAILS_MODE
               value: "enforce"
-            # Arize AX: ARIZE_SPACE_ID y ARIZE_API_KEY llegan del Secret (envFrom); ARIZE_ENABLED=false desactiva.
-            - name: ARIZE_PROJECT_NAME
-              value: "seatstorm-assistant"
-            - name: ARIZE_OTLP_ENDPOINT
-              value: "https://otlp.arize.com/v1"
+            # Arize AX: ARIZE_SPACE_ID, ARIZE_API_KEY, ARIZE_OTLP_ENDPOINT y ARIZE_PROJECT_NAME llegan del Secret
+            # (envFrom, se piden en setup-env.sh). Un `env:` aqui los pisaria. ARIZE_ENABLED=false desactiva.
             - name: LLM_MAX_RPM
               value: "30"
             - name: LLM_FIRST_TOKEN_TIMEOUT_S

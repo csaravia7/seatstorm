@@ -33,6 +33,8 @@ LLM_PROVIDER="${LLM_PROVIDER:-anthropic}"
 # Arize AX (opcional): si estan vacios, assistant-agent no exporta trazas. Llegan por envFrom.
 ARIZE_SPACE_ID="${ARIZE_SPACE_ID:-}"
 ARIZE_API_KEY="${ARIZE_API_KEY:-}"
+ARIZE_OTLP_ENDPOINT="${ARIZE_OTLP_ENDPOINT:-https://otlp.arize.com/v1}"
+ARIZE_PROJECT_NAME="${ARIZE_PROJECT_NAME:-seatstorm-assistant}"
 
 for v in DB_PASSWORD ADMIN_TOKEN SESSION_SECRET TICKET_SECRET; do
   case "${!v}" in change-me*|seatstorm) echo "WARN: $v tiene el valor por defecto; cambialo para un AKS accesible desde Internet." >&2 ;; esac
@@ -52,6 +54,8 @@ for ns in "${NAMESPACES[@]}"; do
     --from-literal=LLM_PROVIDER="$LLM_PROVIDER" \
     --from-literal=ARIZE_SPACE_ID="$ARIZE_SPACE_ID" \
     --from-literal=ARIZE_API_KEY="$ARIZE_API_KEY" \
+    --from-literal=ARIZE_OTLP_ENDPOINT="$ARIZE_OTLP_ENDPOINT" \
+    --from-literal=ARIZE_PROJECT_NAME="$ARIZE_PROJECT_NAME" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   echo "secret seatstorm-secrets -> $ns"
 
