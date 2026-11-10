@@ -1,11 +1,12 @@
-"""CI guard (spec 3.3.1 / ADR-20): forbidden packages must never appear in requirements.txt,
-direct or transitive. Also guards the pyproject declaration."""
+"""CI guard (spec 3.3.1 / ADR-20, amended): framework/auto-instrumentation layers that would wrap the SDKs a second
+time must never appear in requirements.txt, direct or transitive. OpenTelemetry + OpenInference are now ALLOWED
+(Arize AX tracing, app/telemetry.py); LangChain, OpenLLMetry (traceloop) and OpenLIT stay forbidden."""
 import re
 import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN = re.compile(r"^(langchain|opentelemetry|traceloop|openlit)", re.IGNORECASE)
+FORBIDDEN = re.compile(r"^(langchain|traceloop|openlit)", re.IGNORECASE)
 
 
 def _names(lines):
@@ -25,7 +26,8 @@ def test_requirements_txt_has_no_forbidden_packages():
 
 def test_requirements_pins_official_sdks_with_hashes():
     text = (ROOT / "requirements.txt").read_text()
-    for pkg in ("anthropic", "openai", "fastapi", "uvicorn", "httpx", "pydantic"):
+    for pkg in ("anthropic", "openai", "fastapi", "uvicorn", "httpx", "pydantic", "arize-otel",
+                "openinference-instrumentation-openai", "openinference-instrumentation-anthropic"):
         assert re.search(rf"^{pkg}==", text, re.MULTILINE), pkg
     assert "--hash=sha256:" in text
 
@@ -37,6 +39,6 @@ def test_pyproject_has_no_forbidden_packages():
 
 
 def test_guard_detects_forbidden_names():
-    assert FORBIDDEN.match("langchain-core") and FORBIDDEN.match("opentelemetry-api")
-    assert FORBIDDEN.match("traceloop-sdk") and FORBIDDEN.match("openlit")
+    assert FORBIDDEN.match("langchain-core") and FORBIDDEN.match("traceloop-sdk") and FORBIDDEN.match("openlit")
     assert not FORBIDDEN.match("anthropic")
+    assert not FORBIDDEN.match("opentelemetry-api") and not FORBIDDEN.match("openinference-instrumentation-openai")

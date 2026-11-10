@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
+from .guardrails import MODES
+
 PROVIDERS = ("anthropic", "nvidia")
 
 
@@ -46,6 +48,13 @@ class Settings:
     tool_timeout_s: float = 5.0
     session_msgs_per_hour: int = 20
     session_ttl_s: float = 3600.0
+    guardrails_mode: str = "enforce"  # enforce | monitor | off
+    # Arize AX tracing (optional; needs space id + api key). ARIZE_ENABLED=false is the kill switch.
+    arize_flag: bool = True
+    arize_space_id: str = ""
+    arize_api_key: str = ""
+    arize_project_name: str = "seatstorm-assistant"
+    arize_endpoint: str = "https://otlp.arize.com/v1"
     warnings: tuple = field(default=(), compare=False)
 
     @classmethod
@@ -56,6 +65,9 @@ class Settings:
         for p in (provider, fallback):
             if p and p not in PROVIDERS:
                 raise ValueError(f"Unknown LLM provider '{p}'; expected one of {PROVIDERS}")
+        guardrails_mode = _str(e, "GUARDRAILS_MODE", "enforce").lower()
+        if guardrails_mode not in MODES:
+            raise ValueError(f"Unknown GUARDRAILS_MODE '{guardrails_mode}'; expected one of {MODES}")
         return cls(
             llm_provider=provider,
             llm_fallback_provider=fallback,
@@ -77,7 +89,25 @@ class Settings:
             total_timeout_s=_float(e, "LLM_TOTAL_TIMEOUT_S", 60.0),
             tool_timeout_s=_float(e, "TOOL_TIMEOUT_S", 5.0),
             session_msgs_per_hour=_int(e, "SESSION_MSGS_PER_HOUR", 20),
+            guardrails_mode=guardrails_mode,
+            arize_flag=_str(e, "ARIZE_ENABLED", "true").lower() not in ("0", "false", "no", "off"),
+            arize_space_id=e.get("ARIZE_SPACE_ID", "").strip(),
+            arize_api_key=e.get("ARIZE_API_KEY", "").strip(),
+            arize_project_name=_str(e, "ARIZE_PROJECT_NAME", "seatstorm-assistant"),
+            arize_endpoint=_str(e, "ARIZE_OTLP_ENDPOINT", "https://otlp.arize.com/v1"),
         )
+
+    @property
+    def arize_disabled_reason(self) -> str:
+        if not self.arize_flag:
+            return "ARIZE_ENABLED=false"
+        if not (self.arize_space_id and self.arize_api_key):
+            return "ARIZE_SPACE_ID / ARIZE_API_KEY not set"
+        return ""
+
+    @property
+    def arize_enabled(self) -> bool:
+        return not self.arize_disabled_reason
 
     def has_key(self, provider: str) -> bool:
         if provider == "anthropic":

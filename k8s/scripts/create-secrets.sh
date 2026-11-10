@@ -30,6 +30,9 @@ ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 NVIDIA_API_KEY="${NVIDIA_API_KEY:-}"
 # Llega a assistant-agent por envFrom (el deployment ya no lo fija); setup-env.sh lo pone en nvidia si solo hay NVIDIA_API_KEY.
 LLM_PROVIDER="${LLM_PROVIDER:-anthropic}"
+# Arize AX (opcional): si estan vacios, assistant-agent no exporta trazas. Llegan por envFrom.
+ARIZE_SPACE_ID="${ARIZE_SPACE_ID:-}"
+ARIZE_API_KEY="${ARIZE_API_KEY:-}"
 
 for v in DB_PASSWORD ADMIN_TOKEN SESSION_SECRET TICKET_SECRET; do
   case "${!v}" in change-me*|seatstorm) echo "WARN: $v tiene el valor por defecto; cambialo para un AKS accesible desde Internet." >&2 ;; esac
@@ -47,6 +50,8 @@ for ns in "${NAMESPACES[@]}"; do
     --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
     --from-literal=NVIDIA_API_KEY="$NVIDIA_API_KEY" \
     --from-literal=LLM_PROVIDER="$LLM_PROVIDER" \
+    --from-literal=ARIZE_SPACE_ID="$ARIZE_SPACE_ID" \
+    --from-literal=ARIZE_API_KEY="$ARIZE_API_KEY" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   echo "secret seatstorm-secrets -> $ns"
 

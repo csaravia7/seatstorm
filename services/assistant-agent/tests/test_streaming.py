@@ -11,7 +11,8 @@ async def test_healthz(app_factory):
 
 async def test_anthropic_stream_complete_and_in_order(app_factory, mock):
     route = mock.post(ANTHROPIC_URL).mock(return_value=anthropic_text("Hola, ", "te ", "ayudo."))
-    async with app_factory(llm_provider="anthropic") as (chat, _):
+    # guardrails off: raw, unbuffered stream (with guardrails on, tokens are released per sentence)
+    async with app_factory(llm_provider="anthropic", guardrails_mode="off") as (chat, _):
         ev = await chat.events("¿cómo compro?")
     assert [e for e, _ in ev] == ["token", "token", "token", "done"]
     assert tokens(ev) == "Hola, te ayudo."

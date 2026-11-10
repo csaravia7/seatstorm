@@ -46,6 +46,14 @@ spec:
               value: "8080"
             - name: LLM_FALLBACK_PROVIDER
               value: ""
+            # Guardrails del chat: enforce (bloquea/redacta) | monitor (solo registra) | off
+            - name: GUARDRAILS_MODE
+              value: "enforce"
+            # Arize AX: ARIZE_SPACE_ID y ARIZE_API_KEY llegan del Secret (envFrom); ARIZE_ENABLED=false desactiva.
+            - name: ARIZE_PROJECT_NAME
+              value: "seatstorm-assistant"
+            - name: ARIZE_OTLP_ENDPOINT
+              value: "https://otlp.arize.com/v1"
             - name: LLM_MAX_RPM
               value: "30"
             - name: LLM_FIRST_TOKEN_TIMEOUT_S

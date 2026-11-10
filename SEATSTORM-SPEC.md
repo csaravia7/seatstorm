@@ -88,7 +88,7 @@
 | ADR-17 | Caída de la pasarela simulada = **pausar el consumidor** (canal `pausable`), no apagar el pod. | El lag es real y visible, y funciona con réplicas y sin permisos de Kubernetes. |
 | ADR-18 | El *reset* de la demo es un evento (`ResetRequested` en `demo.control`) que cada servicio atiende. | Es event-driven y no requiere coordinación manual. |
 | ADR-19 | Sin RAG vectorial: la documentación (< 12 KB) va en el prompt de sistema (con *prompt caching* en Anthropic). El agente no tiene base de datos. | Anthropic no ofrece API de embeddings y el corpus es diminuto: menos piezas que fallen. |
-| ADR-20 | El agente llama directo a los SDKs `anthropic` y `openai`: sin LangChain, sin OpenTelemetry, sin OpenLLMetry/OpenLIT. | Los sensores del OneAgent se enganchan a los SDKs; una capa intermedia o una segunda instrumentación duplica o rompe los spans. |
+| ADR-20 | El agente llama directo a los SDKs `anthropic` y `openai`: sin LangChain, sin OpenLLMetry/OpenLIT. *(Enmienda: OpenTelemetry/OpenInference permitidos para Arize AX, ver DECISIONS.md.)* | Los sensores del OneAgent se enganchan a los SDKs; una capa intermedia o una segunda instrumentación duplica o rompe los spans. |
 
 ---
 
@@ -166,7 +166,7 @@
 | `pytest`, `pytest-asyncio`, `respx` | última estable | RESOLVER |
 
 - Dependencias fijadas en `requirements.txt` (generado con `pip-compile` o `uv pip compile`, con hashes) y declaradas en `pyproject.toml`.
-- **Prohibido:** `langchain*`, `opentelemetry*`, `traceloop*` (OpenLLMetry), `openlit`. El agente usa los SDKs directamente (ADR-20). Una prueba en CI falla si aparecen en `requirements.txt`.
+- **Prohibido:** `langchain*`, `traceloop*` (OpenLLMetry), `openlit`. El agente usa los SDKs directamente (ADR-20, enmendada: se permiten `opentelemetry*`, `openinference-instrumentation-*` y `arize-otel` solo para exportar trazas a Arize AX, ver `docs/DECISIONS.md`). Una prueba en CI falla si aparecen los prohibidos en `requirements.txt`.
 - Modelos por defecto: Anthropic `claude-sonnet-5-5` (variable `ANTHROPIC_MODEL`); NVIDIA `openai/gpt-oss-20b` (variable `NVIDIA_MODEL`; parámetros `NVIDIA_TEMPERATURE=1`, `NVIDIA_TOP_P=1`, `NVIDIA_MAX_TOKENS=4096`). La clave se lee siempre de la variable de entorno `NVIDIA_API_KEY` (nunca un literal en el código). **Verificar en build.nvidia.com que `gpt-oss-20b` soporte *tool calling* con streaming** antes de la demo; si no, cambiar `NVIDIA_MODEL` por un modelo que sí lo soporte.
 - Cada sensor de IA del OneAgent se activa con su propia función en la configuración de Dynatrace; ver 11.5 y SPK-06.
 

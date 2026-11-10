@@ -17,6 +17,7 @@ from .limits import SessionLimiter
 from .logging_setup import setup_logging
 from .prompt import build_system_prompt
 from .sessions import SessionStore
+from .telemetry import Telemetry, init_telemetry
 
 log = logging.getLogger("assistant.main")
 
@@ -37,7 +38,8 @@ def sse(event: str, data: str) -> bytes:
     return f"event: {event}\n{lines}\n".encode()
 
 
-def create_app(settings_factory: Callable[[], Settings] = Settings.from_env) -> FastAPI:
+def create_app(settings_factory: Callable[[], Settings] = Settings.from_env,
+               telemetry: Telemetry | None = None) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         setup_logging()
@@ -48,14 +50,17 @@ def create_app(settings_factory: Callable[[], Settings] = Settings.from_env) -> 
             log.warning(
                 "No API key for the configured provider(s); /api/chat will always answer the fallback text",
                 extra={"provider": settings.llm_provider, "fallback": settings.llm_fallback_provider})
+        tele = telemetry if telemetry is not None else init_telemetry(settings)
         async with httpx.AsyncClient() as http:
             app.state.settings = settings
-            app.state.agent = Agent(settings, system_prompt, http)
+            app.state.telemetry = tele
+            app.state.agent = Agent(settings, system_prompt, http, tracer=tele.tracer)
             app.state.sessions = SessionStore(settings.session_ttl_s)
             app.state.limiter = SessionLimiter(settings.session_msgs_per_hour)
             log.info("assistant-agent started",
                      extra={"provider": settings.llm_provider, "fallback": settings.llm_fallback_provider or None})
             yield
+        tele.shutdown()  # flush pending spans to Arize
 
     app = FastAPI(title="assistant-agent", lifespan=lifespan)
 
