@@ -44,8 +44,6 @@ spec:
               value: "http://seatmap-query:8080"
             - name: PORT
               value: "8080"
-            - name: LLM_PROVIDER
-              value: "anthropic"
             - name: LLM_FALLBACK_PROVIDER
               value: ""
             - name: LLM_MAX_RPM

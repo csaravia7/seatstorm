@@ -28,6 +28,8 @@ CONSOLE_PIN="${CONSOLE_PIN:-4321}"
 TICKET_SECRET="${TICKET_SECRET:-change-me-ticket-secret}"
 ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-}"
 NVIDIA_API_KEY="${NVIDIA_API_KEY:-}"
+# Llega a assistant-agent por envFrom (el deployment ya no lo fija); setup-env.sh lo pone en nvidia si solo hay NVIDIA_API_KEY.
+LLM_PROVIDER="${LLM_PROVIDER:-anthropic}"
 
 for v in DB_PASSWORD ADMIN_TOKEN SESSION_SECRET TICKET_SECRET; do
   case "${!v}" in change-me*|seatstorm) echo "WARN: $v tiene el valor por defecto; cambialo para un AKS accesible desde Internet." >&2 ;; esac
@@ -44,6 +46,7 @@ for ns in "${NAMESPACES[@]}"; do
     --from-literal=TICKET_SECRET="$TICKET_SECRET" \
     --from-literal=ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
     --from-literal=NVIDIA_API_KEY="$NVIDIA_API_KEY" \
+    --from-literal=LLM_PROVIDER="$LLM_PROVIDER" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   echo "secret seatstorm-secrets -> $ns"
 

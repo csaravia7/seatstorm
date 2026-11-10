@@ -136,7 +136,7 @@ scripts/build-push-dockerhub.sh --jvm --dry-run                # solo construye:
 PLATFORMS=linux/arm64 scripts/build-push-dockerhub.sh --jvm    # nodos arm64 (por defecto: linux/amd64, lo que usa AKS)
 ```
 
-Avanzado (mismo motor): `make push-native [SVC=seat-inventory] [NATIVE_XMX=3g]`, `make push-images` (JVM), `DRY_RUN=1 scripts/push-native.sh notification` (solo construye, no publica). Alternativa en CI: sube a GitHub y ejecuta el workflow **release** (secretos del repo `DOCKER_ID`, `DOCKER_PAT`, y opcionales `DT_ENV_URL`, `DT_API_TOKEN`). Alternativa en CI: sube a GitHub y ejecuta el workflow **release** (secretos del repo `DOCKER_ID`, `DOCKER_PAT`, y opcionales `DT_ENV_URL`, `DT_API_TOKEN`).
+Avanzado (mismo motor): `make push-native [SVC=seat-inventory] [NATIVE_XMX=3g]`, `make push-images` (JVM), `DRY_RUN=1 scripts/push-native.sh notification` (solo construye, no publica). Alternativa en CI: sube a GitHub y ejecuta el workflow **release** (secretos del repo `DOCKER_ID`, `DOCKER_PAT`, y opcionales `DT_ENV_URL`, `DT_API_TOKEN`).
 
 #### 3️⃣ Despliega en AKS
 
@@ -184,6 +184,8 @@ kubectl logs deploy/seat-inventory -n seatstorm --tail=50
 
 > 💡 Para una demo reproducible despliega una versión fija (`TAG=v1.0.0`) en lugar de `latest`.
 > ⚠️ En un mismo clúster usa **Kustomize** (`make k8s-deploy`) **o** Helm (`make aks-deploy`), nunca ambos.
+> 📈 **Dynatrace en el clúster:** el despliegue no pide datos de Dynatrace. Instala el **Dynatrace Operator + DynaKube** *antes* de desplegar (o ejecuta `kubectl rollout restart deploy -n seatstorm` después); inyecta los datos de conexión en los binarios nativos compilados con `DT_ENV_URL` / `DT_API_TOKEN`.
+> 🤖 **Asistente de chat:** si solo das `NVIDIA_API_KEY`, el despliegue elige el proveedor `nvidia` automáticamente (se guarda como `LLM_PROVIDER` en el secreto `seatstorm-secrets`).
 
 🧹 Para eliminar todo: `make k8s-destroy`
 
