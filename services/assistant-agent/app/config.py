@@ -55,6 +55,7 @@ class Settings:
     arize_api_key: str = ""
     arize_project_name: str = "seatstorm-assistant"
     arize_endpoint: str = "https://otlp.arize.com/v1"
+    arize_transport: str = "grpc"  # grpc (Arize default; endpoint as documented) | http (appends /traces)
     warnings: tuple = field(default=(), compare=False)
 
     @classmethod
@@ -68,6 +69,9 @@ class Settings:
         guardrails_mode = _str(e, "GUARDRAILS_MODE", "enforce").lower()
         if guardrails_mode not in MODES:
             raise ValueError(f"Unknown GUARDRAILS_MODE '{guardrails_mode}'; expected one of {MODES}")
+        arize_transport = _str(e, "ARIZE_TRANSPORT", "grpc").lower()
+        if arize_transport not in ("grpc", "http"):
+            raise ValueError(f"Unknown ARIZE_TRANSPORT '{arize_transport}'; expected grpc or http")
         return cls(
             llm_provider=provider,
             llm_fallback_provider=fallback,
@@ -95,6 +99,7 @@ class Settings:
             arize_api_key=e.get("ARIZE_API_KEY", "").strip(),
             arize_project_name=_str(e, "ARIZE_PROJECT_NAME", "seatstorm-assistant"),
             arize_endpoint=_str(e, "ARIZE_OTLP_ENDPOINT", "https://otlp.arize.com/v1"),
+            arize_transport=arize_transport,
         )
 
     @property

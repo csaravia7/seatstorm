@@ -76,7 +76,8 @@ class Agent:
 
     async def _produce(self, q: asyncio.Queue, session: Session, message: str) -> None:
         sid = session.session_id
-        turn: dict = {"outcome": "ok", "output": "", "guardrails": [], "input": message}
+        turn: dict = {"outcome": "ok", "output": "", "guardrails": [], "input": message,
+                      "input_verdict": None, "output_verdicts": [], "context": ""}
         with self.tracer.start_as_current_span("assistant.chat", attributes={
                 T.SPAN_KIND: "AGENT", T.SESSION_ID: sid, T.USER_ID: session.buyer_id,
                 T.INPUT_VALUE: message}) as span:
@@ -96,6 +97,9 @@ class Agent:
                                             "guardrails_triggered": turn["guardrails"],
                                             "provider": self.s.llm_provider}),
                 })
+                span.set_attributes(T.evaluation_attributes(T.build_evaluations(turn, self.s.guardrails_mode)))
+                if turn["context"]:
+                    span.set_attribute(T.CONTEXT, turn["context"][:T.MAX_CONTEXT_CHARS])
                 if turn["outcome"] in ("error", "provider_error"):
                     span.set_status(Status(StatusCode.ERROR, turn["outcome"]))
                 await q.put(None)
@@ -122,6 +126,7 @@ class Agent:
                     "sessionId": sid, "guardrail": verdict.guardrail, "direction": "input",
                     "action": "block" if mode == "enforce" else "flag", "mode": mode, "detail": verdict.detail})
                 turn["guardrails"].append(f"input:{verdict.guardrail}")
+                turn["input_verdict"] = verdict
                 if verdict.guardrail == "pii_leakage":
                     turn["input"] = T.REDACTED  # never ship the sensitive text to the observability backend
             self._guardrail_span("guardrail.input", {
@@ -192,6 +197,7 @@ class Agent:
                 await q.put(("token", piece))
             names = sorted({f"{v.direction}:{v.guardrail}" for v in guard.verdicts})
             turn["guardrails"] += names
+            turn["output_verdicts"] = list(guard.verdicts)
             self._guardrail_span("guardrail.output", {
                 T.OUTPUT_VALUE: guard.text, "guardrail.mode": mode, "guardrail.triggered": bool(guard.verdicts),
                 "guardrail.names": names or ["none"],
@@ -199,6 +205,7 @@ class Agent:
                 "guardrail.hallucination_suspect": any(v.guardrail == "hallucination" for v in guard.verdicts)})
             if guard.blocked:
                 turn["outcome"] = f"blocked:{guard.blocked.guardrail}"
+        turn["context"] = "\n".join(tool_outputs)
         final = guard.text if guard else "".join(parts)
         turn["output"] = final
         session.add_turn(message, final)
