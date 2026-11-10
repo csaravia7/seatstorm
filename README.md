@@ -192,7 +192,7 @@ kubectl logs deploy/seat-inventory -n seatstorm --tail=50
 > 📈 **Dynatrace in the cluster:** the deploy does not ask for Dynatrace data. Install the **Dynatrace Operator + DynaKube** *before* deploying (or `kubectl rollout restart deploy -n seatstorm` afterwards); it injects the connection details into the native binaries built with `DT_ENV_URL` / `DT_API_TOKEN`.
 > 🤖 **Chat assistant:** if you only give `NVIDIA_API_KEY`, the deploy selects the `nvidia` provider automatically (stored as `LLM_PROVIDER` in the `seatstorm-secrets` secret).
 
-🧹 Remove everything: `make k8s-destroy`
+🧹 Remove SeatStorm from the cluster: `make k8s-destroy` (deletes the `seatstorm` and `seatstorm-platform` namespaces, which holds every resource, secret and volume, and warns about orphan disks). It targets the **current `kubectl` context**, so it shows it before asking for confirmation. The AKS cluster itself keeps running and **billing**; to remove it too: `az group delete -n rg-seatstorm --yes --no-wait`. The Dynatrace Operator, if you installed it, is not touched.
 
 ## 🗂️ Repository map
 
