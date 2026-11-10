@@ -58,6 +58,26 @@ class Telemetry:
             log.warning("telemetry_shutdown_failed", exc_info=True)
 
 
+def _tolerate_arize_details_bug() -> None:
+    """arize-otel's register() always calls TracerProvider._tracing_details() (a cosmetic summary) which reads
+    `exporter._headers`; with opentelemetry-exporter-otlp-proto-http >= 1.45 that attribute is gone and register()
+    crashes with AttributeError. The summary is not needed, so make it fail-safe. Guarded by tests/test_telemetry.py."""
+    from arize.otel import otel as arize_otel
+
+    original = arize_otel.TracerProvider._tracing_details
+    if getattr(original, "_seatstorm_safe", False):
+        return
+
+    def safe(self: Any) -> str:
+        try:
+            return original(self)
+        except Exception:  # noqa: BLE001
+            return ""
+
+    safe._seatstorm_safe = True  # type: ignore[attr-defined]
+    arize_otel.TracerProvider._tracing_details = safe
+
+
 def init_telemetry(settings: Settings) -> Telemetry:
     if not settings.arize_enabled:
         log.info("arize_tracing_disabled", extra={"reason": settings.arize_disabled_reason})
@@ -68,6 +88,7 @@ def init_telemetry(settings: Settings) -> Telemetry:
         from openinference.instrumentation.anthropic import AnthropicInstrumentor
         from openinference.instrumentation.openai import OpenAIInstrumentor
 
+        _tolerate_arize_details_bug()
         provider = register(
             space_id=settings.arize_space_id,
             api_key=settings.arize_api_key,

@@ -146,3 +146,16 @@ async def test_llm_sdk_spans_are_children_of_the_turn(spans, mock, provider, url
     assert llm, [s.name for s in spans_]
     assert llm[0].attributes.get("llm.model_name")
     assert llm[0].context.trace_id == root.context.trace_id  # same trace as the turn
+
+
+def test_real_register_works_offline_and_sets_arize_project():
+    """No mocks: arize-otel's register() must work with the pinned OTel exporter (regression: '_headers' AttributeError)."""
+    tele = T.init_telemetry(make_settings(arize_space_id="sp", arize_api_key="ak-test", arize_project_name="proj"))
+    try:
+        assert tele.enabled, "init_telemetry swallowed an error; see the arize_tracing_init_failed log"
+        attrs = dict(tele.provider.resource.attributes)
+        assert "proj" in attrs.values()  # Arize project name travels as a resource attribute
+        procs = [type(p).__name__ for p in tele.provider._active_span_processor._span_processors]
+        assert procs == ["BatchSpanProcessor"]  # async export: the chat never waits on Arize
+    finally:
+        tele.shutdown()
