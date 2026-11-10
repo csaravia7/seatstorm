@@ -57,7 +57,7 @@ spec:
             - name: NVIDIA_BASE_URL
               value: "https://integrate.api.nvidia.com/v1"
             - name: NVIDIA_MODEL
-              value: "openai/gpt-oss-20b"
+              value: "nvidia/nemotron-3.5-lightning-30b-a3b"
             - name: NVIDIA_TEMPERATURE
               value: "1"
             - name: NVIDIA_TOP_P
