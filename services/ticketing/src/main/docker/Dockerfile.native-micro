@@ -4,6 +4,8 @@
 FROM quay.io/quarkus/ubi9-quarkus-graalvmce-builder-image:jdk-21 AS build
 # When set, the binary is built with the Dynatrace GraalVM Native Image module (-Pdynatrace-native)
 ARG DT_ENV_URL=""
+# Extra Maven args, e.g. -Dquarkus.native.native-image-xmx=4g (limits RAM of the native-image step)
+ARG MVN_ARGS=""
 COPY --chown=quarkus:quarkus --chmod=0755 mvnw /code/mvnw
 COPY --chown=quarkus:quarkus .mvn /code/.mvn
 COPY --chown=quarkus:quarkus . /code/
@@ -12,7 +14,7 @@ WORKDIR /code
 # The token arrives as a BuildKit secret: it is not stored in any image layer
 RUN --mount=type=secret,id=dt_api_token,env=DT_API_TOKEN \
     if [ -n "$DT_ENV_URL" ]; then DT_PROFILE="-Pdynatrace-native"; fi; \
-    ./mvnw -B package -pl services/ticketing -am -Dnative -DskipTests ${DT_PROFILE:-} \
+    ./mvnw -B package -pl services/ticketing -am -Dnative -DskipTests ${MVN_ARGS} ${DT_PROFILE:-} \
     && mkdir -p services/ticketing/target/dynatrace
 
 ## Stage 2: minimal runtime image, no JVM

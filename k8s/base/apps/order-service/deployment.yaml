@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: order-service
-          image: docker.io/seatstorm/order-service
+          image: docker.io/DOCKER_ID/order-service
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

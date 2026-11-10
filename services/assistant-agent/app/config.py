@@ -31,7 +31,10 @@ class Settings:
     anthropic_model: str = "claude-sonnet-5-5"
     nvidia_api_key: str = ""
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
-    nvidia_model: str = "meta/llama-3.3-70b-instruct"
+    nvidia_model: str = "openai/gpt-oss-20b"
+    nvidia_temperature: float = 1.0
+    nvidia_top_p: float = 1.0
+    nvidia_max_tokens: int = 4096
     query_url: str = "http://seatmap-query:8080"
     concert_id: str = "neon-tide-2026"
     docs_dir: str = "./docs"
@@ -61,7 +64,10 @@ class Settings:
             anthropic_model=_str(e, "ANTHROPIC_MODEL", "claude-sonnet-5-5"),
             nvidia_api_key=e.get("NVIDIA_API_KEY", "").strip(),
             nvidia_base_url=_str(e, "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-            nvidia_model=_str(e, "NVIDIA_MODEL", "meta/llama-3.3-70b-instruct"),
+            nvidia_model=_str(e, "NVIDIA_MODEL", "openai/gpt-oss-20b"),
+            nvidia_temperature=_float(e, "NVIDIA_TEMPERATURE", 1.0),
+            nvidia_top_p=_float(e, "NVIDIA_TOP_P", 1.0),
+            nvidia_max_tokens=_int(e, "NVIDIA_MAX_TOKENS", 4096),
             query_url=_str(e, "QUERY_URL", "http://seatmap-query:8080").rstrip("/"),
             concert_id=_str(e, "CONCERT_ID", "neon-tide-2026"),
             docs_dir=_str(e, "DOCS_DIR", "./docs"),

@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: bot-swarm
-          image: docker.io/seatstorm/bot-swarm
+          image: docker.io/DOCKER_ID/bot-swarm
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

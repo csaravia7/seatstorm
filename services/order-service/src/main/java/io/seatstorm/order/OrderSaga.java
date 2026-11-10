@@ -189,4 +189,18 @@ public class OrderSaga {
         }
         events.status(o, OrderEntity.CANCELLED, "HOLD_EXPIRED", null, e.getMeta().getEventId());
     }
+
+    /**
+     * Payment timeout: the order has been PAYING for too long without PaymentAuthorized/PaymentFailed
+     * (payment-sim down, paused or stuck). Cancel it and free the seats. A late PaymentAuthorized finds the order
+     * no longer PAYING and is refunded by {@link #on(PaymentAuthorized)}.
+     */
+    public boolean paymentTimedOut(OrderEntity o) {
+        if (!move(o, OrderEntity.PAYING, OrderEntity.CANCELLED, "PAYMENT_FAILED")) {
+            return false; // it moved on in the meantime
+        }
+        events.releaseSeats(o, "PAYMENT_FAILED", null);
+        events.status(o, OrderEntity.CANCELLED, "PAYMENT_FAILED", null, null);
+        return true;
+    }
 }

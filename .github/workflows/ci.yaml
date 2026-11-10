@@ -62,18 +62,24 @@ jobs:
         run: |
           curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz kubeconform
           sudo mv kubeconform /usr/local/bin/
-      - name: Kustomize overlays (strict, no :latest)
+      - name: Kustomize overlays (strict)
         run: |
-          for o in aks local; do
-            kubectl kustomize "k8s/overlays/$o" > "/tmp/$o.yaml"
+          # Los overlays traen el marcador DOCKER_ID; deploy.sh lo reescribe en el despliegue real. Aqui, un id de prueba.
+          for o in aks aks-jvm local; do
+            rm -rf "k8s/overlays/.ci-$o"; cp -R "k8s/overlays/$o" "k8s/overlays/.ci-$o"
+            sed -i -E 's#^([[:space:]]*newName:[[:space:]]*docker\.io/)[^/]+/#\1myuser/#' "k8s/overlays/.ci-$o/kustomization.yaml"
+            kubectl kustomize "k8s/overlays/.ci-$o" > "/tmp/$o.yaml"
+            rm -rf "k8s/overlays/.ci-$o"
+            grep -q 'docker.io/myuser/' "/tmp/$o.yaml" || { echo "::error::$o: newName rewrite failed"; exit 1; }
+            if grep -nE 'DOCKER_ID' "/tmp/$o.yaml"; then echo "::error::$o keeps the DOCKER_ID placeholder"; exit 1; fi
             kubeconform -strict -summary "/tmp/$o.yaml"
-            if grep -nE ':latest\b' "/tmp/$o.yaml"; then echo "::error::$o contains :latest"; exit 1; fi
           done
       - name: Helm charts
         run: |
           helm lint charts/platform
           helm lint charts/seatstorm
           helm template platform charts/platform -n seatstorm-platform | kubeconform -strict -summary
-          helm template seatstorm charts/seatstorm -n seatstorm --set image.tag=ci | kubeconform -strict -summary
+          helm template seatstorm charts/seatstorm -n seatstorm --set image.org=myuser --set image.tag=ci | kubeconform -strict -summary
+          helm template seatstorm charts/seatstorm -n seatstorm -f charts/seatstorm/values-jvm.yaml --set image.org=myuser --set image.tag=ci | kubeconform -strict -summary
       - name: Scripts
-        run: for f in k8s/scripts/*.sh; do bash -n "$f"; done
+        run: for f in k8s/scripts/*.sh scripts/*.sh; do bash -n "$f"; done

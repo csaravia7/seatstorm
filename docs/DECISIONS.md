@@ -99,7 +99,7 @@ The common `seatstorm.hold.seconds` / `seatstorm.hold.payment-extension-seconds`
 - `docker compose` (plugin) was broken locally; `docker-compose` v5 worked. Compose file is standard.
 - Host port 5432 may be taken by a local Postgres; compose then maps but the host client hits the wrong server.
   Use `docker compose exec postgres psql` or free the port.
-- `make` on macOS is 3.81 and does not support `.RECIPEPREFIX` (spec 10.6 Makefile is for GNU Make >= 3.82).
+- `make` on macOS is 3.81 and does not support `.RECIPEPREFIX`. The Makefile was converted to standard tab-indented recipes so it works with any GNU Make (including 3.81).
 - `./mvnw -B verify` runs Dev Services containers (Kafka, Postgres 16, Apicurio): Docker must be running.
 
 ## D-09 SPK-02 (native compatibility): NOT executed
@@ -194,3 +194,11 @@ Validated on Colima with JVM images (`scripts/build-local-images.sh` + `compose.
   demo reset (`done:true`, sale CLOSED, 360 available), assistant-agent no-key fallback message, k6 smoke (20 VUs, thresholds pass), 100 bots, `tests/invariants.sh` OK.
 - Note: the sale is CLOSED after a demo reset, so bots/buyers need the sale re-opened first.
 - `tests/invariants.sh` calls `docker compose`; with only the standalone `docker-compose` binary, put a `docker` shim first in PATH.
+
+## Registry: personal Docker Hub, `DOCKER_ID` / `DOCKER_PAT`; model `openai/gpt-oss-20b`
+- There is no `seatstorm` Docker Hub organization and no Azure-hosted registry. Images live in the user's personal Docker Hub account: `docker.io/${DOCKER_ID}/<svc>:<tag>`.
+  Variables `DOCKER_ID` (username) and `DOCKER_PAT` (personal access token) replace `DOCKERHUB_USER`/`DOCKERHUB_TOKEN` everywhere (scripts, Makefile, devcontainer secrets, GitHub secrets).
+  Compose/build scripts default to `seatstorm/<svc>` only so local builds work without an account. Kustomize cannot read env vars: base apps carry the placeholder `docker.io/DOCKER_ID/<svc>`, overlays set `images[].newName`, and `k8s/scripts/deploy.sh` rewrites `newName`+`newTag` in a temporary overlay copy (CI renders with `myuser`). Helm uses `image.org=$DOCKER_ID`.
+- Two image sources, two memory profiles: native images from CI (`aks` overlay, 256Mi Quarkus limits) and JVM images from `make push-images` (`aks-jvm` overlay / `charts/seatstorm/values-jvm.yaml`, 512Mi for the six DB services and 384Mi for notification, same as `compose.local.yaml`); JVM images at 256Mi are OOM-killed.
+- Assistant agent NVIDIA default model is now `openai/gpt-oss-20b` with `temperature=1`, `top_p=1`, `max_tokens=4096` (`NVIDIA_TEMPERATURE`, `NVIDIA_TOP_P`, `NVIDIA_MAX_TOKENS`). The key is read from the `NVIDIA_API_KEY` environment variable only.
+  The model's `reasoning_content` is discarded (never streamed to users; only its length is logged at debug level). Tool calling with streaming for this model must be verified on build.nvidia.com (unverified).

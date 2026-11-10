@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: bff
-          image: docker.io/seatstorm/bff
+          image: docker.io/DOCKER_ID/bff
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

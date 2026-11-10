@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from typing import Any
 
 import openai
 
-from .base import (MAX_TOKENS, MAX_TOOL_ROUNDS, TEMPERATURE, CallTool, Gate, OnToken, ProviderError,
+from .base import (MAX_TOOL_ROUNDS, CallTool, Gate, OnToken, ProviderError,
                    classify_status)
+
+log = logging.getLogger(__name__)
 
 
 def to_provider_error(exc: Exception) -> ProviderError:
@@ -34,9 +37,13 @@ class OpenAICompatClient:
     name = "nvidia"
 
     def __init__(self, api_key: str, base_url: str, model: str,
-                 client: openai.AsyncOpenAI | None = None):
+                 client: openai.AsyncOpenAI | None = None, temperature: float = 1.0, top_p: float = 1.0,
+                 max_tokens: int = 4096):
         self.client = client or openai.AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0, timeout=30.0)
         self.model = model
+        self.temperature = temperature
+        self.top_p = top_p
+        self.max_tokens = max_tokens
 
     async def run(self, system: str, history: list[dict[str, Any]], tools: list[dict[str, Any]],
                   on_token: OnToken, call_tool: CallTool, gate: Gate) -> None:
@@ -47,16 +54,21 @@ class OpenAICompatClient:
             if round_no == MAX_TOOL_ROUNDS - 1:
                 kwargs["tool_choice"] = "none"
             text_parts: list[str] = []
+            reasoning_chars = 0
             calls: dict[int, dict[str, str]] = {}
             try:
                 stream = await self.client.chat.completions.create(
                     model=self.model, messages=messages, tools=tools, stream=True,
-                    max_tokens=MAX_TOKENS, temperature=TEMPERATURE, **kwargs)
+                    max_tokens=self.max_tokens, temperature=self.temperature, top_p=self.top_p, **kwargs)
                 async for chunk in stream:
                     if not chunk.choices:
                         continue
                     delta = chunk.choices[0].delta
-                    # Only `content` is streamed; reasoning fields (e.g. reasoning_content) are ignored.
+                    # Only `content` is streamed. Reasoning (chain-of-thought, e.g. gpt-oss `reasoning_content`)
+                    # is never forwarded to users; only its length is counted for logging.
+                    reasoning = getattr(delta, "reasoning_content", None) or getattr(delta, "reasoning", None)
+                    if isinstance(reasoning, str):
+                        reasoning_chars += len(reasoning)
                     if delta.content:
                         text_parts.append(delta.content)
                         await on_token(delta.content)
@@ -73,6 +85,8 @@ class OpenAICompatClient:
                 raise
             except Exception as exc:  # noqa: BLE001
                 raise to_provider_error(exc) from exc
+            if reasoning_chars:
+                log.debug("nvidia reasoning discarded: %d chars", reasoning_chars)
             if not calls:
                 return
             ordered = [calls[i] for i in sorted(calls)]

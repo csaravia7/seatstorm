@@ -29,6 +29,28 @@ async def test_nvidia_stream_complete_and_in_order_ignores_reasoning(app_factory
     assert route.calls[0].request.headers["authorization"] == "Bearer nv-test"
 
 
+async def test_nvidia_request_params_defaults_and_model(app_factory, mock):
+    import json
+    route = mock.post(NVIDIA_URL).mock(return_value=openai_text("ok"))
+    async with app_factory(llm_provider="nvidia") as (chat, _):
+        await chat.events()
+    body = json.loads(route.calls[0].request.content)
+    assert body["model"] == "openai/gpt-oss-20b"
+    assert (body["temperature"], body["top_p"], body["max_tokens"]) == (1.0, 1.0, 4096)
+    assert body["stream"] is True
+
+
+def test_nvidia_settings_from_env():
+    from app.config import Settings
+    d = Settings.from_env({})
+    assert (d.nvidia_model, d.nvidia_temperature, d.nvidia_top_p, d.nvidia_max_tokens) == (
+        "openai/gpt-oss-20b", 1.0, 1.0, 4096)
+    c = Settings.from_env({"NVIDIA_MODEL": "x/y", "NVIDIA_TEMPERATURE": "0.5", "NVIDIA_TOP_P": "0.9",
+                           "NVIDIA_MAX_TOKENS": "100", "NVIDIA_API_KEY": " k "})
+    assert (c.nvidia_model, c.nvidia_temperature, c.nvidia_top_p, c.nvidia_max_tokens, c.nvidia_api_key) == (
+        "x/y", 0.5, 0.9, 100, "k")
+
+
 async def test_message_over_500_chars_is_400(app_factory, mock):
     route = mock.post(ANTHROPIC_URL).mock(return_value=anthropic_text("x"))
     async with app_factory() as (chat, _):

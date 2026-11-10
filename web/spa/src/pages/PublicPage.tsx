@@ -10,7 +10,7 @@ import { ToastHost } from '../components/Toast';
 import { useLive } from '../live/useLive';
 import { useMapStore } from '../state/mapStore';
 import { usePurchaseStore } from '../state/purchaseStore';
-import { buy, cancel, fetchTicket, handleMe, pay, restoreActiveOrder } from '../state/flow';
+import { buy, cancel, fetchTicket, handleMe, pay, restoreActiveOrder, startOrderWatcher } from '../state/flow';
 import { clearIdempotencyKey } from '../lib/idempotency';
 import { money } from '../lib/format';
 import { sectionLabel, parseSeatId } from '../lib/venue';
@@ -229,6 +229,9 @@ export function PublicPage() {
   useEffect(() => {
     if (me) void restoreActiveOrder();
   }, [me]);
+
+  // Fallback to the live channel: poll the order while it is in flight (see flow.ts).
+  useEffect(() => startOrderWatcher(), []);
 
   useLive('public', {
     onMe: handleMe,

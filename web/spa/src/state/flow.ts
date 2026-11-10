@@ -107,3 +107,59 @@ export async function fetchTicket(orderId: string, tries = 10, delayMs = 1000): 
     await new Promise((r) => setTimeout(r, delayMs));
   }
 }
+
+// ---- Fallback poller -------------------------------------------------------------------------
+// The live channel (SSE) can be buffered or dropped by proxies (e.g. Codespaces port forwarding), which left the
+// buyer on "Procesando tu pago…" forever. While an order is in flight we also ask the server directly.
+const IN_FLIGHT = new Set(['PLACED', 'HELD', 'PAYING', 'CONFIRMING', 'REFUNDING']);
+const POLL_MS = 2000;
+const SLOW_PAYMENT_MS = 30_000;
+
+let watcher: ReturnType<typeof setInterval> | undefined;
+let inFlightSince = 0;
+let slowWarnedFor: string | null = null;
+
+async function pollOrderOnce(): Promise<void> {
+  const o = ps().order;
+  if (!o?.orderId || !IN_FLIGHT.has(String(o.status))) {
+    inFlightSince = 0;
+    return;
+  }
+  if (!inFlightSince) inFlightSince = Date.now();
+  try {
+    const raw = await api.order(o.orderId);
+    const n = normalizeOrder(raw);
+    if (n?.status && n.status !== o.status) {
+      ps().applyOrderMessage({
+        type: 'order',
+        buyerId: '',
+        orderId: o.orderId,
+        status: n.status,
+        reason: n.reason ?? null,
+        heldUntilMs: n.heldUntilMs ?? null,
+      });
+      inFlightSince = Date.now();
+    }
+  } catch {
+    // transient: the next tick retries
+  }
+  const cur = ps().order;
+  if (
+    cur &&
+    (cur.status === 'PAYING' || cur.status === 'CONFIRMING') &&
+    Date.now() - inFlightSince > SLOW_PAYMENT_MS &&
+    slowWarnedFor !== cur.orderId
+  ) {
+    slowWarnedFor = cur.orderId;
+    ps().showToast('warn', 'El pago está tardando más de lo normal. Seguimos intentando; si no se completa se cancelará y se liberarán tus asientos.');
+  }
+}
+
+/** Idempotent; call once when the buyer page mounts. */
+export function startOrderWatcher(): () => void {
+  if (!watcher) watcher = setInterval(() => void pollOrderOnce(), POLL_MS);
+  return () => {
+    if (watcher) clearInterval(watcher);
+    watcher = undefined;
+  };
+}

@@ -9,12 +9,12 @@ fi
 
 if [[ -z "${JAVA_HOME:-}" ]]; then
   candidates=()
+  [[ -x /usr/libexec/java_home ]] && candidates+=("$(/usr/libexec/java_home -v 21+ 2>/dev/null || true)")   # macOS: the real JDK, not the /usr/bin/java stub
   if command -v java >/dev/null 2>&1; then
     candidates+=("$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")")
   fi
   candidates+=(/usr/local/sdkman/candidates/java/current "$HOME"/.sdkman/candidates/java/current)
   for d in /usr/lib/jvm/*; do candidates+=("$d"); done
-  [[ -x /usr/libexec/java_home ]] && candidates+=("$(/usr/libexec/java_home -v 21+ 2>/dev/null || true)")
   for c in "${candidates[@]}"; do
     if [[ -n "$c" ]] && _java_ok "$c"; then export JAVA_HOME="$c"; break; fi
   done

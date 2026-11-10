@@ -2,7 +2,8 @@
 # Crea (idempotente) los secretos de SeatStorm en ambos namespaces a partir de .env.
 # Nunca escribe valores en disco ni en el repositorio.
 #   uso: k8s/scripts/create-secrets.sh [ruta/.env]
-# Opcional: DOCKERHUB_USER / DOCKERHUB_TOKEN -> secreto `dockerhub` + imagePullSecrets en la SA default (spec 11.2).
+# DOCKER_ID / DOCKER_PAT -> secreto `dockerhub` + imagePullSecrets en la SA default (spec 11.2).
+# (el PAT nunca se imprime, no va en argumentos ni se escribe a disco)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -10,8 +11,12 @@ ENV_FILE="${1:-$ROOT/.env}"
 NAMESPACES=(seatstorm-platform seatstorm)
 
 if [ -f "$ENV_FILE" ]; then
-  set -a; # shellcheck disable=SC1090
-  source "$ENV_FILE"; set +a
+  # Las variables ya exportadas (p. ej. por setup-env.sh) tienen prioridad sobre .env
+  while IFS='=' read -r k v; do
+    case "$k" in ''|\#*) continue;; esac
+    [[ "$k" =~ ^[A-Z0-9_]+$ ]] || continue
+    [ -z "${!k:-}" ] && export "$k=$v"
+  done < "$ENV_FILE"
 else
   echo "WARN: $ENV_FILE no existe; se usan variables del entorno o valores por defecto de compose." >&2
 fi
@@ -42,14 +47,16 @@ for ns in "${NAMESPACES[@]}"; do
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null
   echo "secret seatstorm-secrets -> $ns"
 
-  if [ -n "${DOCKERHUB_USER:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
-    kubectl create secret docker-registry dockerhub -n "$ns" \
-      --docker-server=https://index.docker.io/v1/ \
-      --docker-username="$DOCKERHUB_USER" --docker-password="$DOCKERHUB_TOKEN" \
-      --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+  if [ -n "${DOCKER_ID:-}" ] && [ -n "${DOCKER_PAT:-}" ]; then
+    # El PAT viaja por stdin (no en la linea de comandos).
+    auth="$(printf '%s:%s' "$DOCKER_ID" "$DOCKER_PAT" | base64 | tr -d '\n')"
+    printf '{"auths":{"https://index.docker.io/v1/":{"username":"%s","password":"%s","auth":"%s"}}}' \
+        "$DOCKER_ID" "$DOCKER_PAT" "$auth" |
+      kubectl create secret generic dockerhub -n "$ns" --type=kubernetes.io/dockerconfigjson \
+        --from-file=.dockerconfigjson=/dev/stdin --dry-run=client -o yaml | kubectl apply -f - >/dev/null
     kubectl patch serviceaccount default -n "$ns" -p '{"imagePullSecrets":[{"name":"dockerhub"}]}' >/dev/null
     echo "secret dockerhub -> $ns (enlazado a la ServiceAccount default)"
   else
-    echo "WARN: sin DOCKERHUB_USER/DOCKERHUB_TOKEN no se crea el secreto dockerhub en $ns (riesgo de ImagePullBackOff por limite de descargas)." >&2
+    echo "WARN: sin DOCKER_ID/DOCKER_PAT no se crea el secreto dockerhub en $ns (ImagePullBackOff si tu repositorio es privado; limite de descargas anonimas si es publico)." >&2
   fi
 done

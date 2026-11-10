@@ -45,7 +45,8 @@ class Agent:
                 out[name] = AnthropicClient(self.s.anthropic_api_key, self.s.anthropic_model, None)
             else:
                 out[name] = OpenAICompatClient(self.s.nvidia_api_key, self.s.nvidia_base_url,
-                                               self.s.nvidia_model)
+                                               self.s.nvidia_model, temperature=self.s.nvidia_temperature,
+                                               top_p=self.s.nvidia_top_p, max_tokens=self.s.nvidia_max_tokens)
         return out
 
     @staticmethod

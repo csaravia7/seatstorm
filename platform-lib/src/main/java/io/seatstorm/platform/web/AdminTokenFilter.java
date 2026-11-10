@@ -6,7 +6,7 @@ import jakarta.ws.rs.container.PreMatching;
 import jakarta.ws.rs.ext.Provider;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.config.ConfigProvider;
 
 /** Requires {@code X-Admin-Token} (config {@code seatstorm.admin-token}, env ADMIN_TOKEN) on every /admin/* request. */
 @Provider
@@ -15,8 +15,20 @@ public class AdminTokenFilter implements ContainerRequestFilter {
 
     public static final String HEADER = "X-Admin-Token";
 
-    @ConfigProperty(name = "seatstorm.admin-token")
-    String expected;
+    /**
+     * Resolved lazily at request time. Injecting it with @ConfigProperty makes the JAX-RS provider capture the
+     * build-time value in the native static-init phase, and Quarkus then refuses to start when ADMIN_TOKEN differs.
+     */
+    private volatile String expected;
+
+    private String expected() {
+        String v = expected;
+        if (v == null) {
+            v = ConfigProvider.getConfig().getValue("seatstorm.admin-token", String.class);
+            expected = v;
+        }
+        return v;
+    }
 
     @Override
     public void filter(ContainerRequestContext ctx) {
@@ -29,7 +41,7 @@ public class AdminTokenFilter implements ContainerRequestFilter {
         }
         String given = ctx.getHeaderString(HEADER);
         boolean ok = given != null && MessageDigest.isEqual(
-                given.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
+                given.getBytes(StandardCharsets.UTF_8), expected().getBytes(StandardCharsets.UTF_8));
         if (!ok) {
             ctx.abortWith(ApiExceptionMapper.build(401, ErrorCode.BAD_ADMIN_TOKEN.name(),
                     "Token de administración inválido", java.util.Map.of()));

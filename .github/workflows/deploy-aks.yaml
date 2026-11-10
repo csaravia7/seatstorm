@@ -3,9 +3,16 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Image tag to deploy (git sha). Never 'latest'."
+        description: "Image tag to deploy: 'latest' (default) or a specific version / git sha."
         required: true
+        default: latest
         type: string
+      images:
+        description: "native = images from release.yaml (256Mi limits); jvm = images from 'make push-images' (512Mi/384Mi)"
+        required: true
+        default: native
+        type: choice
+        options: [native, jvm]
 permissions:
   contents: read
 concurrency:
@@ -15,8 +22,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Reject latest
-        run: '[ "${{ inputs.tag }}" != "latest" ] || { echo "::error::latest is not allowed"; exit 1; }'
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
       - name: Write kubeconfig
@@ -26,5 +31,9 @@ jobs:
           mkdir -p "$HOME/.kube"
           echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
+      # Repository secrets: KUBE_CONFIG and DOCKER_ID (Docker Hub username: images are docker.io/<DOCKER_ID>/<svc>:<tag>).
+      # The `dockerhub` pull secret (DOCKER_ID/DOCKER_PAT) must already exist in the cluster (see docs/RUNBOOK.md).
       - name: Deploy (helm upgrade --install platform + seatstorm)
-        run: make aks-deploy TAG=${{ inputs.tag }}
+        env:
+          DOCKER_ID: ${{ secrets.DOCKER_ID }}
+        run: make aks-deploy TAG=${{ inputs.tag }} ${{ inputs.images == 'jvm' && 'HELM_VALUES=charts/seatstorm/values-jvm.yaml' || '' }}

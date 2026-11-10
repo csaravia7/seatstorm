@@ -59,7 +59,7 @@ flowchart LR
 
 ### Option 1 — ☁️ GitHub Codespaces (fastest)
 
-1. Click **Code ▸ Codespaces ▸ New codespace** (pick the **4-core / 16 GB** (or larger) machine; add `ANTHROPIC_API_KEY` or `NVIDIA_API_KEY` as Codespaces secrets for the chat assistant).
+1. Click **Code ▸ Codespaces ▸ New codespace** (pick the **4-core / 16 GB** (or larger) machine; add `ANTHROPIC_API_KEY` or `NVIDIA_API_KEY` as Codespaces secrets for the chat assistant; optionally `DOCKER_ID` and `DOCKER_PAT` (Docker Hub username and personal access token) to log in to Docker Hub).
 2. When the terminal is ready, run:
 
 ```bash
@@ -76,7 +76,7 @@ make codespaces-down       # 🛑 stop (add --purge via scripts/codespaces-down.
 
 ### Option 2 — 💻 Local with Docker Compose
 
-**Requirements:** Docker 27+ with Compose v2, `make` (GNU Make 3.82+).
+**Requirements:** Docker 27+ with Compose v2, `make` (any version, including the 3.81 that ships with macOS).
 
 ```bash
 cp .env.example .env
@@ -84,27 +84,108 @@ scripts/build-local-images.sh                                        # 🔨 JVM 
 docker compose -f compose.yaml -f compose.local.yaml --profile apps up -d
 ```
 
-Then open **http://localhost:8080** 🎉. Once images are published to Docker Hub, `make demo-up` pulls them instead of building.
+Then open **http://localhost:8080** 🎉. Once you have pushed images to your Docker Hub account (`make push-images`), set `DOCKER_ID` in `.env` and `make demo-up` pulls `docker.io/$DOCKER_ID/<service>:$TAG` instead of building. Without `DOCKER_ID` the images are named `seatstorm/<service>` (local builds only).
 
-### Option 3 — ☸️ Kubernetes / Azure AKS
+### Option 3 — ☸️ Kubernetes / Azure AKS (build the images, then deploy)
 
-**Requirements:** a cluster, `kubectl` pointing at it, and your Docker Hub credentials.
+> 🎯 **Goal:** your own images in **your personal Docker Hub** (`docker.io/<DOCKER_ID>/<service>`) running on an AKS cluster. Just run the commands in order — every script **asks for whatever is missing** (tokens are typed hidden and never written to disk).
+
+#### 📋 What you need
+
+| Need | Details |
+|---|---|
+| 🐳 Docker | Running on the machine where you build (macOS: Docker Desktop or `colima start --cpu 4 --memory 8`). Native images need **~8 GB RAM for Docker** and a **linux/amd64** machine (use the Codespace); on Apple Silicon choose **JVM** images, which are cross-built for `linux/amd64` |
+| 🔨 `make` | Any version (the macOS default 3.81 works) |
+| ☸️ `kubectl` + a cluster | Any Kubernetes cluster; the steps below create an AKS one (needs `az`) |
+| 🔑 Docker Hub | Your username (`DOCKER_ID`) and an access token (`DOCKER_PAT`, from hub.docker.com/settings/security; **write** access to push) |
+| 📈 Dynatrace *(optional)* | `DT_ENV_URL` (e.g. `https://abc12345.live.dynatrace.com`) and `DT_API_TOKEN` (scope `InstallerDownload`) to instrument the native binaries |
+| 🤖 LLM key *(optional)* | `NVIDIA_API_KEY` or `ANTHROPIC_API_KEY` for the chat assistant |
+
+#### 1️⃣ Create the cluster (once)
 
 ```bash
-cp .env.example .env                     # ✏️ fill in the secrets
-k8s/scripts/create-secrets.sh            # 🔐 creates secrets + image pull secret
-make k8s-deploy TAG=<git-sha>            # 🚀 applies the YAML in k8s/ and prints the public IP
+az group create -n rg-seatstorm -l <region>
+az aks create -g rg-seatstorm -n aks-seatstorm --node-count 3 --node-vm-size Standard_D4s_v5 --generate-ssh-keys
+az aks get-credentials -g rg-seatstorm -n aks-seatstorm --admin     # points kubectl at the cluster
+kubectl get nodes                                                    # ✅ 3 nodes Ready
 ```
 
-Prefer Helm? 
+#### 2️⃣ Build and push the images to Docker Hub
 
 ```bash
-make aks-deploy TAG=<git-sha>
+./scripts/build-push-dockerhub.sh       # 🧰 one guided script: builds ALL the images AKS needs and pushes them to your Docker Hub
 ```
 
-> ⚠️ Use **either** Kustomize (`k8s/`) **or** Helm (`charts/`) on a given cluster, never both.
+It asks, in this order (export a variable beforehand to skip its question):
 
-Remove everything: `make k8s-destroy` 🧹
+| Prompt | What to enter |
+|---|---|
+| Image type | **1** ⚡ native GraalVM *(recommended: tiny, starts in ~0.1 s; ~4 min per service, ~8 GB RAM for Docker, linux/amd64 machine such as the Codespace)* · **2** 🚀 JVM *(fast to build; deploy with `OVERLAY=aks-jvm`)* |
+| Image tag | **Enter** for `latest`, or a version like `v1.0.0` |
+| `DOCKER_ID` | Your Docker Hub username |
+| `DOCKER_PAT` *(hidden)* | Docker Hub access token with Read & Write |
+| `DT_ENV_URL` *(native only)* | Your Dynatrace URL, e.g. `https://abc12345.live.dynatrace.com` — **Enter** to build without Dynatrace |
+| `DT_API_TOKEN` *(hidden)* | Dynatrace API token, scope `InstallerDownload` (only if you gave the URL) |
+
+After a summary and a confirmation it builds and pushes the **11 images** (7 Quarkus services + `bff`, `bot-swarm`, `web`, `assistant-agent`) as `docker.io/<DOCKER_ID>/<service>:<tag>`, and prints the next command.
+
+```bash
+scripts/build-push-dockerhub.sh --native --tag v1.0.0 --yes    # no questions (export DOCKER_ID / DOCKER_PAT first)
+scripts/build-push-dockerhub.sh --jvm                          # JVM images
+scripts/build-push-dockerhub.sh --jvm --dry-run                # build only: no login, nothing is pushed (validates the build)
+PLATFORMS=linux/arm64 scripts/build-push-dockerhub.sh --jvm    # arm64 nodes (default: linux/amd64, what AKS uses)
+```
+
+Advanced (same engine): `make push-native [SVC=seat-inventory] [NATIVE_XMX=3g]`, `make push-images` (JVM), `DRY_RUN=1 scripts/push-native.sh notification` (build only, push nothing). CI alternative: push to GitHub and run the **release** workflow (repo secrets `DOCKER_ID`, `DOCKER_PAT`, optional `DT_ENV_URL`, `DT_API_TOKEN`). CI alternative: push to GitHub and run the **release** workflow (repo secrets `DOCKER_ID`, `DOCKER_PAT`, optional `DT_ENV_URL`, `DT_API_TOKEN`).
+
+#### 3️⃣ Deploy to AKS
+
+```bash
+make k8s-deploy                      # tag "latest" by default; or: make k8s-deploy TAG=v1.0.0
+# JVM images?  OVERLAY=aks-jvm make k8s-deploy
+```
+
+It checks `kubectl`, shows the target cluster and asks for confirmation, then asks for what is missing:
+
+| Prompt | Notes |
+|---|---|
+| `DOCKER_ID` / `DOCKER_PAT` *(hidden)* | **Required.** Creates the `dockerhub` image-pull secret (a read-only token is enough) |
+| `ANTHROPIC_API_KEY` / `NVIDIA_API_KEY` | Optional. Without a key the assistant answers with a fallback text. NVIDIA default model: `openai/gpt-oss-20b` |
+| `CONSOLE_PIN` | Presenter console PIN (a random one is proposed) |
+| `DB_PASSWORD`, `ADMIN_TOKEN`, `SESSION_SECRET`, `TICKET_SECRET` | Generated automatically; reused from the cluster on redeploys |
+
+You can pre-load every variable with `source k8s/scripts/setup-env.sh`. Non-interactive (CI): export them and run `ASSUME_YES=1 k8s/scripts/deploy.sh <tag>`.
+
+#### 4️⃣ Open it 🎉
+
+When the script ends it prints the public URL (`http://<EXTERNAL-IP>`):
+
+| Page | Path |
+|---|---|
+| 📱 Audience | `/` |
+| 🎬 Stage screen | `/stage` |
+| 🎛️ Presenter console (PIN) | `/console` — open the sale from here to start |
+
+```bash
+kubectl get pods -n seatstorm            # all Running
+kubectl get svc web -n seatstorm         # EXTERNAL-IP
+kubectl logs deploy/seat-inventory -n seatstorm --tail=50
+```
+
+#### 🩹 Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `ImagePullBackOff` | Check the images exist (`docker.io/<DOCKER_ID>/<service>:<tag>`) and that `DOCKER_PAT` is valid; redeploy |
+| Pods `OOMKilled` | You pushed JVM images but deployed the native overlay → `OVERLAY=aks-jvm make k8s-deploy` |
+| Native build killed / very slow | Give Docker ≥ 8 GB (`NATIVE_XMX=3g`), build on linux/amd64 (the Codespace) |
+| Web shows `EXTERNAL-IP <pending>` | Wait ~2 min for the Azure load balancer |
+| Redeploy with `latest` shows old code | `make k8s-deploy` already forces `imagePullPolicy: Always` + a rollout restart |
+
+> 💡 For a reproducible demo, deploy a fixed version (`TAG=v1.0.0`) instead of `latest`.
+> ⚠️ Use **either** Kustomize (`make k8s-deploy`) **or** Helm (`make aks-deploy`) on a given cluster, never both.
+
+🧹 Remove everything: `make k8s-destroy`
 
 ## 🗂️ Repository map
 

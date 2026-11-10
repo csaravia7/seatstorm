@@ -100,47 +100,47 @@ services:
   # ---------- aplicación (perfil apps) ----------
   event-catalog:
     <<: *quarkus-svc
-    image: seatstorm/event-catalog:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/event-catalog:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/catalog_db
   order-service:
     <<: *quarkus-svc
-    image: seatstorm/order-service:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/order-service:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/order_db
   seat-inventory:
     <<: *quarkus-svc
-    image: seatstorm/seat-inventory:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/seat-inventory:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/inventory_db
   payment-sim:
     <<: *quarkus-svc
-    image: seatstorm/payment-sim:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/payment-sim:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/payment_db
   ticketing:
     <<: *quarkus-svc
-    image: seatstorm/ticketing:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/ticketing:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/ticket_db
   seatmap-query:
     <<: *quarkus-svc
-    image: seatstorm/seatmap-query:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/seatmap-query:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/query_db
   notification:
     <<: *quarkus-svc
-    image: seatstorm/notification:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/notification:${TAG:-dev}
     environment:
       <<: *quarkus-env
   assistant-agent:
-    image: seatstorm/assistant-agent:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/assistant-agent:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     mem_limit: 384m
@@ -154,10 +154,13 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.3-70b-instruct}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-openai/gpt-oss-20b}
+      NVIDIA_TEMPERATURE: ${NVIDIA_TEMPERATURE:-1}
+      NVIDIA_TOP_P: ${NVIDIA_TOP_P:-1}
+      NVIDIA_MAX_TOKENS: ${NVIDIA_MAX_TOKENS:-4096}
 
   bff:
-    image: seatstorm/bff:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/bff:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     mem_limit: 384m
@@ -179,14 +182,14 @@ services:
       DYNATRACE_URL: ${DYNATRACE_URL:-}
 
   bot-swarm:
-    image: seatstorm/bot-swarm:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/bot-swarm:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     mem_limit: 384m
     environment: { PORT: 3100, TARGET_URL: "http://bff:3000", ADMIN_TOKEN: "${ADMIN_TOKEN:-change-me-admin}" }
 
   web:
-    image: seatstorm/web:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/web:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     ports: ["8080:8080"]

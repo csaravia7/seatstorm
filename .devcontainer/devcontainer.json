@@ -32,11 +32,11 @@
     }
   },
   "secrets": {
-    "DOCKERHUB_USER": {
-      "description": "Docker Hub user (avoids the anonymous pull limit)"
+    "DOCKER_ID": {
+      "description": "Your Docker Hub username (images are docker.io/<DOCKER_ID>/<service>)"
     },
-    "DOCKERHUB_TOKEN": {
-      "description": "Docker Hub access token (read)"
+    "DOCKER_PAT": {
+      "description": "Docker Hub personal access token (read-only to pull; read/write to push images)"
     },
     "ANTHROPIC_API_KEY": {
       "description": "Anthropic API key (assistant-agent)"
@@ -49,10 +49,14 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "redhat.vscode-quarkus",
-        "vscjava.vscode-java-pack",
         "dbaeumer.vscode-eslint"
-      ]
+      ],
+      "settings": {
+        "java.import.maven.enabled": false,
+        "java.autobuild.enabled": false,
+        "java.configuration.updateBuildConfiguration": "disabled",
+        "maven.terminal.useJavaHome": true
+      }
     }
   },
   "postStartCommand": "nohup bash scripts/codespaces-public-port.sh 8080 900 > /tmp/public-port.log 2>&1 &"

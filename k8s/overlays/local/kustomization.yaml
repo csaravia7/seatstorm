@@ -1,32 +1,43 @@
 # Overlay local (minikube / kind). Las imagenes deben existir en el nodo
-# (`kind load docker-image ...` / `minikube image load ...`) o estar en Docker Hub.
-# Cambiar el tag: `kustomize edit set image` o editar `newTag`.
+# (`kind load docker-image ...` / `minikube image load ...`) o estar en tu Docker Hub.
+# deploy.sh reescribe newName (docker.io/$DOCKER_ID/<svc>; por defecto `seatstorm` en local) y newTag.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
 images:
-  - name: docker.io/seatstorm/event-catalog
+  - name: docker.io/DOCKER_ID/event-catalog
+    newName: docker.io/DOCKER_ID/event-catalog
     newTag: "dev"
-  - name: docker.io/seatstorm/order-service
+  - name: docker.io/DOCKER_ID/order-service
+    newName: docker.io/DOCKER_ID/order-service
     newTag: "dev"
-  - name: docker.io/seatstorm/seat-inventory
+  - name: docker.io/DOCKER_ID/seat-inventory
+    newName: docker.io/DOCKER_ID/seat-inventory
     newTag: "dev"
-  - name: docker.io/seatstorm/payment-sim
+  - name: docker.io/DOCKER_ID/payment-sim
+    newName: docker.io/DOCKER_ID/payment-sim
     newTag: "dev"
-  - name: docker.io/seatstorm/ticketing
+  - name: docker.io/DOCKER_ID/ticketing
+    newName: docker.io/DOCKER_ID/ticketing
     newTag: "dev"
-  - name: docker.io/seatstorm/seatmap-query
+  - name: docker.io/DOCKER_ID/seatmap-query
+    newName: docker.io/DOCKER_ID/seatmap-query
     newTag: "dev"
-  - name: docker.io/seatstorm/notification
+  - name: docker.io/DOCKER_ID/notification
+    newName: docker.io/DOCKER_ID/notification
     newTag: "dev"
-  - name: docker.io/seatstorm/assistant-agent
+  - name: docker.io/DOCKER_ID/assistant-agent
+    newName: docker.io/DOCKER_ID/assistant-agent
     newTag: "dev"
-  - name: docker.io/seatstorm/bff
+  - name: docker.io/DOCKER_ID/bff
+    newName: docker.io/DOCKER_ID/bff
     newTag: "dev"
-  - name: docker.io/seatstorm/bot-swarm
+  - name: docker.io/DOCKER_ID/bot-swarm
+    newName: docker.io/DOCKER_ID/bot-swarm
     newTag: "dev"
-  - name: docker.io/seatstorm/web
+  - name: docker.io/DOCKER_ID/web
+    newName: docker.io/DOCKER_ID/web
     newTag: "dev"
 replicas:
   - name: event-catalog

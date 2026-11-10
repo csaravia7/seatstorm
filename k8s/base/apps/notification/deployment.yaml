@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: notification
-          image: docker.io/seatstorm/notification
+          image: docker.io/DOCKER_ID/notification
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

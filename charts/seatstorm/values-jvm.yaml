@@ -1,0 +1,13 @@
+# Override para imagenes JVM (publicadas con `make push-images`): Quarkus necesita mas memoria que el binario nativo.
+# Mismos valores que compose.local.yaml (512Mi para los seis servicios con BD, 384Mi notification).
+# Uso: helm upgrade --install seatstorm charts/seatstorm -n seatstorm -f charts/seatstorm/values-jvm.yaml \
+#        --set image.org=$DOCKER_ID --set image.tag=<tag>      (o: make aks-deploy TAG=<tag> HELM_VALUES=charts/seatstorm/values-jvm.yaml)
+# Con imagenes nativas (CI / release.yaml) NO usar este fichero: se queda con values.yaml (256Mi).
+services:
+  event-catalog:  { resources: { requests: { cpu: 50m,  memory: 320Mi }, limits: { memory: 512Mi } } }
+  order-service:  { resources: { requests: { cpu: 100m, memory: 320Mi }, limits: { memory: 512Mi } } }
+  seat-inventory: { resources: { requests: { cpu: 200m, memory: 320Mi }, limits: { memory: 512Mi } } }
+  payment-sim:    { resources: { requests: { cpu: 50m,  memory: 320Mi }, limits: { memory: 512Mi } } }
+  ticketing:      { resources: { requests: { cpu: 50m,  memory: 320Mi }, limits: { memory: 512Mi } } }
+  seatmap-query:  { resources: { requests: { cpu: 100m, memory: 320Mi }, limits: { memory: 512Mi } } }
+  notification:   { resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { memory: 384Mi } } }

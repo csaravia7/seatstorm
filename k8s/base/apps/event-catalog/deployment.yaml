@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: event-catalog
-          image: docker.io/seatstorm/event-catalog
+          image: docker.io/DOCKER_ID/event-catalog
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

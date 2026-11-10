@@ -59,6 +59,9 @@ spec:
             - { name: ANTHROPIC_MODEL, value: {{ $.Values.llm.anthropicModel | quote }} }
             - { name: NVIDIA_BASE_URL, value: {{ $.Values.llm.nvidiaBaseUrl | quote }} }
             - { name: NVIDIA_MODEL, value: {{ $.Values.llm.nvidiaModel | quote }} }
+            - { name: NVIDIA_TEMPERATURE, value: {{ $.Values.llm.nvidiaTemperature | quote }} }
+            - { name: NVIDIA_TOP_P, value: {{ $.Values.llm.nvidiaTopP | quote }} }
+            - { name: NVIDIA_MAX_TOKENS, value: {{ $.Values.llm.nvidiaMaxTokens | quote }} }
             {{- end }}
             {{- range $k, $v := $svc.env }}
             - name: {{ $k }}

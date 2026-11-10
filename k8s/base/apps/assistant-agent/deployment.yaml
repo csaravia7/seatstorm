@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: assistant-agent
-          image: docker.io/seatstorm/assistant-agent
+          image: docker.io/DOCKER_ID/assistant-agent
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -55,7 +55,13 @@ spec:
             - name: NVIDIA_BASE_URL
               value: "https://integrate.api.nvidia.com/v1"
             - name: NVIDIA_MODEL
-              value: "meta/llama-3.3-70b-instruct"
+              value: "openai/gpt-oss-20b"
+            - name: NVIDIA_TEMPERATURE
+              value: "1"
+            - name: NVIDIA_TOP_P
+              value: "1"
+            - name: NVIDIA_MAX_TOKENS
+              value: "4096"
           envFrom:
             - secretRef:
                 name: seatstorm-secrets

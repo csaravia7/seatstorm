@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: ticketing
-          image: docker.io/seatstorm/ticketing
+          image: docker.io/DOCKER_ID/ticketing
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

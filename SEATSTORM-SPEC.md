@@ -81,7 +81,7 @@
 | ADR-10 | Sin login real. Sesión anónima con apodo y cookie firmada (HMAC). Consola del presentador protegida por PIN. | Que 200 personas entren sin fricción. |
 | ADR-11 | El agente de chat es un servicio **Python 3.12 + FastAPI** que usa los SDKs oficiales **`anthropic`** y **`openai`** (este último contra NVIDIA NIM por su API compatible). El proveedor se elige por variable de entorno (`LLM_PROVIDER=anthropic|nvidia`) con respaldo opcional. | Dynatrace documenta sensores de AI Observability del OneAgent para SDKs de IA **en Python** (OpenAI estable, Anthropic experimental). No encontré cobertura documentada para Java. |
 | ADR-12 | Observabilidad: ninguna dentro de la app. En AKS, Dynatrace OneAgent (Operator, `cloudNativeFullStack`) instalado aparte. Prohibido `quarkus-opentelemetry`, SDKs de OTel y paquetes `opentelemetry-*` en Python o Node. | Evita doble instrumentación. |
-| ADR-13 | Registro de imágenes: Docker Hub, organización `seatstorm`, etiqueta = git SHA, nunca `:latest`. | Requisito del usuario. |
+| ADR-13 | Registro de imágenes: la cuenta **personal** de Docker Hub del usuario (no existe una organización `seatstorm`). Dos variables: `DOCKER_ID` (usuario) y `DOCKER_PAT` (personal access token). Imágenes `docker.io/${DOCKER_ID}/<svc>:<tag>`, etiqueta por defecto `latest` (decisión del usuario), opcionalmente una versión concreta (`v1.0.0`, git SHA) con `TAG=<versión>`; con `latest` el despliegue fuerza `imagePullPolicy: Always` y reinicia los Deployments para tomar la imagen nueva. Sin registros alojados en Azure. | Requisito del usuario. |
 | ADR-14 | Sin componentes gestionados de Azure: solo el clúster AKS, el Service `LoadBalancer` y discos de PVC. | Requisito del usuario. |
 | ADR-15 | Ingress: ninguno. `nginx` en el pod `web` sirve la SPA y hace de reverse proxy. En AKS se expone con un Service `LoadBalancer`. | ingress-nginx dejó de mantenerse en marzo de 2026. |
 | ADR-16 | La demo se controla desde la consola web (`/console`): abrir/cerrar venta, modo de pago, bots, reset. | Presentar sin terminal. |
@@ -167,7 +167,7 @@
 
 - Dependencias fijadas en `requirements.txt` (generado con `pip-compile` o `uv pip compile`, con hashes) y declaradas en `pyproject.toml`.
 - **Prohibido:** `langchain*`, `opentelemetry*`, `traceloop*` (OpenLLMetry), `openlit`. El agente usa los SDKs directamente (ADR-20). Una prueba en CI falla si aparecen en `requirements.txt`.
-- Modelos por defecto: Anthropic `claude-sonnet-5-5` (variable `ANTHROPIC_MODEL`); NVIDIA `meta/llama-3.3-70b-instruct` como ejemplo (`NVIDIA_MODEL`): **verificar en el catálogo de build.nvidia.com que el modelo elegido soporte *tool calling***.
+- Modelos por defecto: Anthropic `claude-sonnet-5-5` (variable `ANTHROPIC_MODEL`); NVIDIA `openai/gpt-oss-20b` (variable `NVIDIA_MODEL`; parámetros `NVIDIA_TEMPERATURE=1`, `NVIDIA_TOP_P=1`, `NVIDIA_MAX_TOKENS=4096`). La clave se lee siempre de la variable de entorno `NVIDIA_API_KEY` (nunca un literal en el código). **Verificar en build.nvidia.com que `gpt-oss-20b` soporte *tool calling* con streaming** antes de la demo; si no, cambiar `NVIDIA_MODEL` por un modelo que sí lo soporte.
 - Cada sensor de IA del OneAgent se activa con su propia función en la configuración de Dynatrace; ver 11.5 y SPK-06.
 
 ### 3.4 Infraestructura
@@ -985,7 +985,7 @@ Los bots **no** pasan por nginx: llaman directo a `http://bff:3000`.
 | `LLM_PROVIDER` | SDK | Llamada | Modelo |
 |---|---|---|---|
 | `anthropic` | `anthropic` (`AsyncAnthropic`) | `client.messages.stream(...)` con `tools` | `ANTHROPIC_MODEL`, por defecto `claude-sonnet-5-5` |
-| `nvidia` | `openai` (`AsyncOpenAI(base_url=NVIDIA_BASE_URL, api_key=NVIDIA_API_KEY)`) | `client.chat.completions.create(stream=True, tools=...)` | `NVIDIA_MODEL`, por defecto `meta/llama-3.3-70b-instruct` |
+| `nvidia` | `openai` (`AsyncOpenAI(base_url=NVIDIA_BASE_URL, api_key=NVIDIA_API_KEY)`) | `client.chat.completions.create(stream=True, tools=...)` | `NVIDIA_MODEL`, por defecto `openai/gpt-oss-20b` |
 
 El proveedor se elige en tiempo de ejecución (reiniciando el pod). `LLM_FALLBACK_PROVIDER` (opcional) se usa una vez cuando el principal responde 429, 5xx o agota el tiempo.
 
@@ -995,12 +995,13 @@ El proveedor se elige en tiempo de ejecución (reiniciando el pod). `LLM_FALLBAC
 | `LLM_FALLBACK_PROVIDER` | vacío | Respaldo |
 | `LLM_MAX_RPM` | `30` | Límite global de peticiones por minuto hacia el proveedor |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | —, `claude-sonnet-5-5` | |
-| `NVIDIA_API_KEY`, `NVIDIA_BASE_URL`, `NVIDIA_MODEL` | —, `https://integrate.api.nvidia.com/v1`, `meta/llama-3.3-70b-instruct` | |
+| `NVIDIA_API_KEY`, `NVIDIA_BASE_URL`, `NVIDIA_MODEL` | —, `https://integrate.api.nvidia.com/v1`, `openai/gpt-oss-20b` | |
+| `NVIDIA_TEMPERATURE`, `NVIDIA_TOP_P`, `NVIDIA_MAX_TOKENS` | `1`, `1`, `4096` | Solo para el proveedor `nvidia` (Anthropic mantiene sus valores propios) |
 | `QUERY_URL` | `http://seatmap-query:8080` | Herramientas |
 | `DOCS_DIR` | `./docs` | Documentos del prompt |
 | `PORT` | `8080` | |
 
-**NVIDIA (nivel gratuito):** fuentes de terceros reportan unas 40 peticiones por minuto por defecto y errores 429 frecuentes con flujos de herramientas; no lo verifiqué en la documentación de NVIDIA, y el nivel gratuito es para prototipos. Con 200 asistentes chateando, ese límite se agota: por eso existe el limitador global (9.4) y el respaldo. Algunos modelos de razonamiento devuelven un campo de razonamiento aparte: el adaptador debe ignorarlo y transmitir solo el contenido.
+**NVIDIA (nivel gratuito):** fuentes de terceros reportan unas 40 peticiones por minuto por defecto y errores 429 frecuentes con flujos de herramientas; no lo verifiqué en la documentación de NVIDIA, y el nivel gratuito es para prototipos. Con 200 asistentes chateando, ese límite se agota: por eso existe el limitador global (9.4) y el respaldo. Algunos modelos de razonamiento devuelven un campo de razonamiento aparte: el adaptador debe ignorarlo y transmitir solo el contenido. `gpt-oss-20b` devuelve `reasoning_content`: el adaptador descarta ese campo (nunca se envía al usuario; solo se registra su longitud a nivel debug).
 
 ### 9.2 Estructura del proyecto (`services/assistant-agent/`)
 
@@ -1119,7 +1120,7 @@ seatstorm/
 │   └── kafka/create-topics.sh
 ├── charts/
 │   ├── platform/                   # kafka, postgres, apicurio, kafka-ui, kafka-init
-│   └── seatstorm/                  # todos los servicios de aplicación
+│   └── seatstorm/                  # todos los servicios de aplicación (values.yaml nativo; values-jvm.yaml para imágenes JVM)
 ├── k8s/                            # YAML de Kubernetes (Kustomize) para despliegue directo, sin Helm
 │   ├── README.md
 │   ├── base/
@@ -1128,9 +1129,10 @@ seatstorm/
 │   │   ├── platform/               # kafka/, postgres/, apicurio/, kafka-ui/ (+ Job kafka-init)
 │   │   └── apps/                   # un directorio por servicio (11): deployment.yaml, service.yaml
 │   ├── overlays/
-│   │   ├── aks/                    # tag de imagen, imagePullSecret, réplicas, web como LoadBalancer
+│   │   ├── aks/                    # imágenes nativas (CI): newName/newTag, imagePullSecret, web como LoadBalancer
+│   │   ├── aks-jvm/                # igual que aks + memoria para imágenes JVM (make push-images)
 │   │   └── local/                  # minikube/kind (opcional)
-│   └── scripts/                    # deploy.sh, destroy.sh, create-secrets.sh
+│   └── scripts/                    # deploy.sh, destroy.sh, create-secrets.sh, setup-env.sh, build-push-dockerhub.sh
 ├── seed/docs/                      # faq.md, how-it-works.md, reasons.md (prompt del agente)
 ├── tests/
 │   ├── k6/smoke.js, k6/load.js
@@ -1188,6 +1190,10 @@ seatstorm/
 
 ```dotenv
 TAG=dev
+# Docker Hub (cuenta personal): imágenes docker.io/$DOCKER_ID/<servicio>:$TAG
+DOCKER_ID=
+# Personal access token (solo lectura basta para el clúster; NUNCA se versiona)
+DOCKER_PAT=
 DB_PASSWORD=seatstorm
 ADMIN_TOKEN=change-me-admin
 SESSION_SECRET=change-me-32-bytes-minimum-secret
@@ -1201,7 +1207,10 @@ ANTHROPIC_API_KEY=
 ANTHROPIC_MODEL=claude-sonnet-5-5
 NVIDIA_API_KEY=
 NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=meta/llama-3.3-70b-instruct
+NVIDIA_MODEL=openai/gpt-oss-20b
+NVIDIA_TEMPERATURE=1
+NVIDIA_TOP_P=1
+NVIDIA_MAX_TOKENS=4096
 # Optional links shown in the console
 KAFKA_UI_URL=http://localhost:8085
 DYNATRACE_URL=
@@ -1342,47 +1351,47 @@ services:
   # ---------- aplicación (perfil apps) ----------
   event-catalog:
     <<: *quarkus-svc
-    image: seatstorm/event-catalog:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/event-catalog:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/catalog_db
   order-service:
     <<: *quarkus-svc
-    image: seatstorm/order-service:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/order-service:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/order_db
   seat-inventory:
     <<: *quarkus-svc
-    image: seatstorm/seat-inventory:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/seat-inventory:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/inventory_db
   payment-sim:
     <<: *quarkus-svc
-    image: seatstorm/payment-sim:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/payment-sim:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/payment_db
   ticketing:
     <<: *quarkus-svc
-    image: seatstorm/ticketing:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/ticketing:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/ticket_db
   seatmap-query:
     <<: *quarkus-svc
-    image: seatstorm/seatmap-query:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/seatmap-query:${TAG:-dev}
     environment:
       <<: *quarkus-env
       DB_URL: jdbc:postgresql://postgres:5432/query_db
   notification:
     <<: *quarkus-svc
-    image: seatstorm/notification:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/notification:${TAG:-dev}
     environment:
       <<: *quarkus-env
   assistant-agent:
-    image: seatstorm/assistant-agent:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/assistant-agent:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     mem_limit: 384m
@@ -1396,10 +1405,13 @@ services:
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-5-5}
       NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
       NVIDIA_BASE_URL: ${NVIDIA_BASE_URL:-https://integrate.api.nvidia.com/v1}
-      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.3-70b-instruct}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-openai/gpt-oss-20b}
+      NVIDIA_TEMPERATURE: ${NVIDIA_TEMPERATURE:-1}
+      NVIDIA_TOP_P: ${NVIDIA_TOP_P:-1}
+      NVIDIA_MAX_TOKENS: ${NVIDIA_MAX_TOKENS:-4096}
 
   bff:
-    image: seatstorm/bff:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/bff:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     mem_limit: 384m
@@ -1421,14 +1433,14 @@ services:
       DYNATRACE_URL: ${DYNATRACE_URL:-}
 
   bot-swarm:
-    image: seatstorm/bot-swarm:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/bot-swarm:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     mem_limit: 384m
     environment: { PORT: 3100, TARGET_URL: "http://bff:3000" }
 
   web:
-    image: seatstorm/web:${TAG:-dev}
+    image: ${DOCKER_ID:-seatstorm}/web:${TAG:-dev}
     profiles: ["apps"]
     restart: unless-stopped
     ports: ["8080:8080"]
@@ -1463,8 +1475,8 @@ volumes:
     "8085": { "label": "Kafka UI", "visibility": "private" }
   },
   "secrets": {
-    "DOCKERHUB_USER": { "description": "Docker Hub user (avoids the anonymous pull limit)" },
-    "DOCKERHUB_TOKEN": { "description": "Docker Hub access token (read)" },
+    "DOCKER_ID": { "description": "Your Docker Hub username (images are docker.io/<DOCKER_ID>/<service>)" },
+    "DOCKER_PAT": { "description": "Docker Hub personal access token (read-only to pull; read/write to push images)" },
     "ANTHROPIC_API_KEY": { "description": "Anthropic API key (assistant-agent)" },
     "NVIDIA_API_KEY": { "description": "NVIDIA NIM API key, free tier (assistant-agent)" }
   },
@@ -1477,17 +1489,16 @@ Notas: el puerto 8080 público depende de la política de la organización de Gi
 
 ### 10.6 `Makefile`
 
-Usa `.RECIPEPREFIX := >` para evitar el problema de tabuladores.
+Las recetas se indentan con **tabulador** (formato estándar): funciona con cualquier GNU Make, incluida la 3.81 de macOS, que no soporta `.RECIPEPREFIX`. Los ejemplos de abajo usan `>` solo por legibilidad; en el `Makefile` real es un tabulador.
 
 ```make
-.RECIPEPREFIX := >
 SHELL := bash
 TAG ?= dev
 CODESPACE_URL = https://$(CODESPACE_NAME)-8080.app.github.dev
 
 bootstrap:                ## one-time setup after the Codespace is created
 > cp -n .env.example .env || true
-> [ -z "$$DOCKERHUB_TOKEN" ] || echo "$$DOCKERHUB_TOKEN" | docker login -u "$$DOCKERHUB_USER" --password-stdin
+> [ -z "$$DOCKER_PAT" ] || [ -z "$$DOCKER_ID" ] || echo "$$DOCKER_PAT" | docker login -u "$$DOCKER_ID" --password-stdin
 > ./mvnw -q -DskipTests install
 > (cd web/spa && npm ci) && (cd web/bff && npm ci) && (cd web/bots && npm ci)
 > (cd services/assistant-agent && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt)
@@ -1497,7 +1508,7 @@ infra-up:                 ## Kafka, Postgres, Apicurio, Kafka UI
 infra-down:
 > docker compose down
 
-demo-up:                  ## everything, from Docker Hub images (same as AKS)
+demo-up:                  ## everything, from docker.io/$$DOCKER_ID/<svc>:$$TAG images (default `seatstorm`: locally built)
 > docker compose --profile apps up -d
 demo-down:
 > docker compose --profile apps down
@@ -1531,9 +1542,14 @@ logs:
 psql:                     ## make psql DB=inventory_db
 > docker compose exec postgres psql -U seatstorm -d $(DB)
 
-aks-deploy:               ## make aks-deploy TAG=<git-sha>
+push-images:              ## make push-images TAG=<tag>  (JVM images -> docker.io/$DOCKER_ID/<svc>:<tag>; needs DOCKER_ID, DOCKER_PAT)
+> TAG=$(TAG) scripts/push-dockerhub.sh
+
+HELM_VALUES ?=
+aks-deploy:               ## make aks-deploy TAG=<tag> [HELM_VALUES=charts/seatstorm/values-jvm.yaml]  (needs DOCKER_ID)
+> @[ -n "$$DOCKER_ID" ] || { echo "ERROR: DOCKER_ID is required" >&2; exit 2; }
 > helm upgrade --install platform charts/platform -n seatstorm-platform --create-namespace
-> helm upgrade --install seatstorm charts/seatstorm -n seatstorm --create-namespace --set image.tag=$(TAG)
+> helm upgrade --install seatstorm charts/seatstorm -n seatstorm --create-namespace $(if $(HELM_VALUES),-f $(HELM_VALUES)) --set image.org=$$DOCKER_ID --set image.tag=$(TAG)
 > kubectl get svc web -n seatstorm
 
 k8s-deploy:               ## make k8s-deploy TAG=<git-sha>  (manifiestos YAML, sin Helm)
@@ -1633,10 +1649,11 @@ El agente (Python) corre en desarrollo con `make dev-agent` en el puerto 8108. `
 
 ### 11.1 Docker Hub
 
-- Organización `seatstorm` (verificar que esté libre; si no, `seatstormdemo` y ajustar `image.org`). Repositorios públicos: evitan secretos de lectura y el límite de repositorios privados.
-- Etiquetas: `<git-sha>` y, opcionalmente, `demo-YYYYMMDD`. **Nunca `:latest`** en charts ni en compose de demo.
-- **Límite de descargas:** las descargas anónimas están muy limitadas (del orden de 10 por hora por IP, a verificar en la documentación de Docker). Los 3 nodos de AKS salen por la misma IP. Por eso: `imagePullSecret` con una cuenta autenticada y, en el Codespace, `docker login` (lo hace `make bootstrap` si existen `DOCKERHUB_USER`/`DOCKERHUB_TOKEN`). Esto aplica también a las imágenes de terceros (Kafka, Postgres, Kafka UI, Apicurio, nginx).
-- Tokens: uno de solo lectura para el clúster y otro de escritura para CI.
+- Cuenta **personal** de Docker Hub del usuario; no hay organización `seatstorm`. Variables: **`DOCKER_ID`** (usuario) y **`DOCKER_PAT`** (personal access token). Las imágenes son `docker.io/${DOCKER_ID}/<svc>:<tag>`; en Helm `image.org=$DOCKER_ID`, en Kustomize `images[].newName` (que `deploy.sh` reescribe) y en compose `${DOCKER_ID:-seatstorm}/<svc>:${TAG:-dev}` (el valor `seatstorm` es solo el predeterminado local para construir sin cuenta). Los repositorios nuevos de Docker Hub son públicos por defecto; si se vuelven privados, el clúster necesita el secreto `dockerhub`.
+- Etiquetas: **`latest` por defecto** (`make push-native`, `make push-images` y `make k8s-deploy` sin `TAG`), u opcionalmente una versión concreta (`TAG=v1.0.0`, git SHA o `demo-YYYYMMDD`). Con `latest`, `deploy.sh` y `make aks-deploy` fuerzan `imagePullPolicy: Always` y `deploy.sh` ejecuta `kubectl rollout restart`. Para una demo reproducible conviene fijar una versión concreta.
+- **Límite de descargas:** las descargas anónimas están muy limitadas (del orden de 10 por hora por IP, a verificar en la documentación de Docker). Los 3 nodos de AKS salen por la misma IP. Por eso: `imagePullSecret` con una cuenta autenticada y, en el Codespace, `docker login` (lo hace `make bootstrap` si existen `DOCKER_ID`/`DOCKER_PAT`). Esto aplica también a las imágenes de terceros (Kafka, Postgres, Kafka UI, Apicurio, nginx).
+- `DOCKER_PAT`: de **solo lectura** para el clúster; de lectura/escritura solo para CI y para `make push-images`. Nunca se versiona (`.env` está en `.gitignore`) ni se pasa en argumentos de comandos (`docker login --password-stdin`).
+- **Dos orígenes de imágenes:** (a) *nativas*, publicadas por `release.yaml` (CI, 256Mi por servicio Quarkus) → overlay `aks` / valores por defecto de Helm; (b) *JVM*, construidas y publicadas desde cualquier equipo con `make push-images TAG=<tag>` (`scripts/push-dockerhub.sh`: exige `DOCKER_ID`/`DOCKER_PAT`, `docker login --password-stdin`, construye con `scripts/build-local-images.sh`, sube las 11 imágenes) → overlay `aks-jvm` / `values-jvm.yaml`, porque las imágenes JVM necesitan 512Mi (384Mi `notification`) y con 256Mi el kernel las mata por OOM.
 
 ### 11.2 Clúster AKS (demo)
 
@@ -1647,7 +1664,7 @@ az aks get-credentials -g rg-seatstorm -n aks-seatstorm --admin      # --admin e
 kubectl create ns seatstorm-platform && kubectl create ns seatstorm
 for ns in seatstorm-platform seatstorm; do
   kubectl create secret docker-registry dockerhub -n $ns --docker-server=https://index.docker.io/v1/ \
-    --docker-username="$DH_USER" --docker-password="$DH_TOKEN"
+    --docker-username="$DOCKER_ID" --docker-password="$DOCKER_PAT"
   kubectl patch serviceaccount default -n $ns -p '{"imagePullSecrets":[{"name":"dockerhub"}]}'
   kubectl create secret generic seatstorm-secrets -n $ns \
     --from-literal=DB_PASSWORD=... --from-literal=ADMIN_TOKEN=... --from-literal=SESSION_SECRET=... \
@@ -1676,7 +1693,7 @@ Un pool de 3 nodos de 4 vCPU/16 GB deja margen para el OneAgent. Para la escena 
 
 ```yaml
 # values.yaml
-image: { registry: docker.io, org: seatstorm, tag: dev, pullPolicy: IfNotPresent }
+image: { registry: docker.io, org: CHANGE-ME-DOCKER-ID, tag: dev, pullPolicy: IfNotPresent }   # org = DOCKER_ID: --set image.org=$DOCKER_ID
 common:
   enableServiceLinks: false
   env:
@@ -1685,7 +1702,7 @@ common:
     DB_USER: seatstorm
     QUERY_URL: http://seatmap-query:8080
   envFrom: [{ secretRef: { name: seatstorm-secrets } }]
-llm: { provider: anthropic, fallbackProvider: "", maxRpm: "30", anthropicModel: claude-sonnet-5-5, nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1", nvidiaModel: meta/llama-3.3-70b-instruct }
+llm: { provider: anthropic, fallbackProvider: "", maxRpm: "30", anthropicModel: claude-sonnet-5-5, nvidiaBaseUrl: "https://integrate.api.nvidia.com/v1", nvidiaModel: openai/gpt-oss-20b, nvidiaTemperature: "1", nvidiaTopP: "1", nvidiaMaxTokens: "4096" }
 services:
   event-catalog:   { kind: quarkus, replicas: 1, db: catalog_db,   resources: { requests: { cpu: 50m,  memory: 96Mi  }, limits: { memory: 256Mi } } }
   order-service:   { kind: quarkus, replicas: 2, db: order_db,     resources: { requests: { cpu: 100m, memory: 96Mi  }, limits: { memory: 256Mi } } }
@@ -1703,7 +1720,7 @@ services:
 Reglas de la plantilla:
 
 - Variable `DB_URL = jdbc:postgresql://postgres.seatstorm-platform.svc.cluster.local:5432/<db>`.
-- Para `assistant-agent`, la plantilla traduce `llm.*` a `LLM_PROVIDER`, `LLM_FALLBACK_PROVIDER`, `LLM_MAX_RPM`, `ANTHROPIC_MODEL`, `NVIDIA_BASE_URL` y `NVIDIA_MODEL`; las claves (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`) vienen del secreto `seatstorm-secrets`.
+- Para `assistant-agent`, la plantilla traduce `llm.*` a `LLM_PROVIDER`, `LLM_FALLBACK_PROVIDER`, `LLM_MAX_RPM`, `ANTHROPIC_MODEL`, `NVIDIA_BASE_URL`, `NVIDIA_MODEL`, `NVIDIA_TEMPERATURE`, `NVIDIA_TOP_P` y `NVIDIA_MAX_TOKENS`; las claves (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`) vienen del secreto `seatstorm-secrets`.
 - Sondas: `quarkus` → `/q/health/live` y `/q/health/ready`; `node` y `python` → `/healthz`; `nginx` → TCP 8080. `startupProbe` de 30 intentos × 2 s.
 - `seat-inventory` usa `replicas: 3` por defecto; para la escena de escala se sube con `kubectl scale` hasta 12 (una por partición como máximo útil).
 - Etiquetas estándar en todos los pods: `app.kubernetes.io/name`, `app.kubernetes.io/version` (= tag), `app.kubernetes.io/part-of: seatstorm`.
@@ -1719,20 +1736,23 @@ Segunda vía de despliegue, **equivalente a los charts** y pensada para un despl
 
 - `base/platform/` aplica a `seatstorm-platform` y `base/apps/` a `seatstorm`; cada directorio tiene su `kustomization.yaml` y la raíz `base/kustomization.yaml` los compone en orden (namespaces → secrets → platform → apps).
 - Cada servicio de `base/apps/<svc>/` contiene `deployment.yaml` y `service.yaml` con los valores de `values.yaml` de 11.3 (réplicas, recursos, puertos, sondas, `enableServiceLinks: false`, etiquetas `app.kubernetes.io/*`, `DT_RELEASE_*`).
-- Las imágenes se declaran como `docker.io/seatstorm/<svc>` sin tag; el tag lo fija el overlay con `images:` (`newTag: <git-sha>`). Nunca `:latest`.
-- `overlays/aks` fija el tag, el `imagePullSecret` `dockerhub` y el Service `web` de tipo `LoadBalancer`; `overlays/local` ajusta recursos y usa `NodePort` para minikube/kind.
+- Las imágenes de `base/` llevan un nombre marcador neutro (`docker.io/DOCKER_ID/<svc>`, sin tag). El overlay fija `images[].newName: docker.io/<DOCKER_ID>/<svc>` y `newTag: <tag>`. Como Kustomize no lee variables de entorno, `deploy.sh` exige `DOCKER_ID` y reescribe `newName` y `newTag` en una copia temporal del overlay (y falla si el render conserva el marcador o contiene `:latest`). Nunca `:latest`.
+- `overlays/aks` (imágenes **nativas** de CI) fija el tag, el repositorio, el `imagePullSecret` `dockerhub` y el Service `web` de tipo `LoadBalancer`; `overlays/aks-jvm` es igual pero sube la memoria de Quarkus a 512Mi (6 servicios con BD) y 384Mi (`notification`), con requests de 320Mi/256Mi, para las imágenes JVM de `make push-images` (`OVERLAY=aks-jvm`); `overlays/local` ajusta recursos y usa `NodePort` para minikube/kind.
 - **Secretos:** `base/secrets/seatstorm-secrets.example.yaml` es solo plantilla. Los valores reales se crean con `k8s/scripts/create-secrets.sh` (lee `.env`) y nunca se versionan; `.gitignore` excluye `k8s/**/secrets.yaml`.
-- Scripts: `deploy.sh <tag>` (crea namespaces y secretos, `kubectl apply -k k8s/overlays/aks`, espera `rollout status` y `kafka-init`, imprime la IP de `web`); `destroy.sh` (borra ambos namespaces tras confirmación).
-- Validación en CI: `kubectl kustomize k8s/overlays/aks | kubeconform -strict` y que el resultado no contenga `:latest`.
+- Scripts: `setup-env.sh` (pide `DOCKER_ID` y `DOCKER_PAT` como **obligatorios**, el PAT con entrada oculta, y el resto de variables), `deploy.sh <tag>` (`OVERLAY=aks|aks-jvm|local`; crea namespaces y secretos, `kubectl apply -k k8s/overlays/aks`, espera `rollout status` y `kafka-init`, imprime la IP de `web`); `destroy.sh` (borra ambos namespaces tras confirmación).
+- Validación en CI: cada overlay (`aks`, `aks-jvm`, `local`) se renderiza con un id de prueba (`myuser`) con la misma reescritura que `deploy.sh`, se valida con `kubeconform -strict` y no debe contener el marcador `DOCKER_ID`.
 
 ```bash
-make k8s-deploy TAG=<git-sha>      # equivale a k8s/scripts/deploy.sh <git-sha>
-kubectl apply -k k8s/overlays/aks  # manual, tras crear namespaces y secretos
+make k8s-deploy TAG=<tag>                       # nativas (CI): overlay aks; exige DOCKER_ID
+OVERLAY=aks-jvm make k8s-deploy TAG=<tag>       # JVM (make push-images): overlay aks-jvm
+make aks-deploy TAG=<tag> [HELM_VALUES=charts/seatstorm/values-jvm.yaml]   # vía Helm; exige DOCKER_ID (--set image.org=$DOCKER_ID)
 ```
 
 ### 11.4 GitHub Actions
 
 **`ci.yaml`** (en cada PR y push): `actions/checkout@v4`; job `java` con `actions/setup-java@v4` (Temurin 21, caché Maven) y `./mvnw -B verify` (el runner tiene Docker para Dev Services); job `web` (matriz `spa`, `bff`, `bots`) con `actions/setup-node@v4` (Node 22), `npm ci`, `npm run lint --if-present`, `npm test`, `npm run build`; job `agent` con `actions/setup-python@v5` (Python 3.12), `pip install -r requirements.txt` y `pytest`.
+
+**Secretos de repositorio necesarios:** `DOCKER_ID` y `DOCKER_PAT` (release, con escritura), `DOCKER_ID` y `KUBE_CONFIG` (deploy-aks). CI no los necesita: renderiza con un id de prueba.
 
 **`release.yaml`** (en tag `v*` o `workflow_dispatch`):
 
@@ -1753,14 +1773,14 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21", cache: maven }
       - uses: docker/login-action@v3
-        with: { username: "${{ vars.DOCKERHUB_USER }}", password: "${{ secrets.DOCKERHUB_TOKEN }}" }
+        with: { username: "${{ secrets.DOCKER_ID }}", password: "${{ secrets.DOCKER_PAT }}" }
       - name: Build native image and push
         run: >
           ./mvnw -B -pl services/${{ matrix.svc }} -am package -DskipTests -Dnative
           -Dquarkus.native.container-build=true
           -Dquarkus.docker.dockerfile-native-path=src/main/docker/Dockerfile.native-micro
           -Dquarkus.container-image.build=true -Dquarkus.container-image.push=true
-          -Dquarkus.container-image.registry=docker.io -Dquarkus.container-image.group=seatstorm
+          -Dquarkus.container-image.registry=docker.io -Dquarkus.container-image.group=${{ secrets.DOCKER_ID }}
           -Dquarkus.container-image.name=${{ matrix.svc }} -Dquarkus.container-image.tag=${{ github.sha }}
   node-images:
     runs-on: ubuntu-latest
@@ -1774,14 +1794,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: docker/login-action@v3
-        with: { username: "${{ vars.DOCKERHUB_USER }}", password: "${{ secrets.DOCKERHUB_TOKEN }}" }
+        with: { username: "${{ secrets.DOCKER_ID }}", password: "${{ secrets.DOCKER_PAT }}" }
       - uses: docker/build-push-action@v6
-        with: { context: "${{ matrix.context }}", file: "${{ matrix.file }}", push: true, tags: "seatstorm/${{ matrix.name }}:${{ github.sha }}" }
+        with: { context: "${{ matrix.context }}", file: "${{ matrix.file }}", push: true, tags: "docker.io/${{ secrets.DOCKER_ID }}/${{ matrix.name }}:${{ github.sha }}" }
 ```
 
 > Los runners estándar de repos **privados** tienen ~7 GB de RAM: la compilación nativa puede fallar por memoria. En ese caso usar runners grandes de GitHub o bajar `max-parallel` a 1 y fijar `-Dquarkus.native.native-image-xmx=6g`.
 
-**`deploy-aks.yaml`** (`workflow_dispatch` con entrada `tag`): `azure/setup-helm@v4`; escribe el kubeconfig desde el secreto `KUBE_CONFIG` (obtenido con `az aks get-credentials --admin`, codificado en base64); ejecuta `make aks-deploy TAG=${{ inputs.tag }}`. Sin acciones de Azure: solo `kubectl` y `helm` contra el clúster.
+**`deploy-aks.yaml`** (`workflow_dispatch` con entrada `tag`): `azure/setup-helm@v4`; escribe el kubeconfig desde el secreto `KUBE_CONFIG` (obtenido con `az aks get-credentials --admin`, codificado en base64); ejecuta `make aks-deploy TAG=${{ inputs.tag }}` con `DOCKER_ID` desde los secretos y, si la entrada `images` es `jvm`, `HELM_VALUES=charts/seatstorm/values-jvm.yaml`. Sin acciones de Azure: solo `kubectl` y `helm` contra el clúster.
 
 ### 11.5 Dynatrace en AKS (instalación posterior, la hace el usuario)
 
@@ -2227,12 +2247,13 @@ Como *Presentador* quiero simular cientos de asistentes.
 ### Épica E11 — Imágenes, AKS y Dynatrace
 
 **US-E11-01 · Imágenes nativas en CI** (L)
-- `release.yaml` construye y publica en Docker Hub las 7 imágenes nativas de Quarkus (`seatstorm/<svc>:<sha>`) y las 4 restantes (BFF, bots, web y agente Python); cada imagen nativa arranca en menos de 1 s y responde `/q/health/ready`, y las demás responden `/healthz`.
+- `release.yaml` construye y publica en Docker Hub (cuenta personal, secretos `DOCKER_ID`/`DOCKER_PAT`) las 7 imágenes nativas de Quarkus (`docker.io/<DOCKER_ID>/<svc>:<sha>`) y las 4 restantes (BFF, bots, web y agente Python); cada imagen nativa arranca en menos de 1 s y responde `/q/health/ready`, y las demás responden `/healthz`.
+- `scripts/push-dockerhub.sh` (`make push-images TAG=<tag>`) construye las 11 imágenes en JVM y las sube a `docker.io/$DOCKER_ID/<svc>:<tag>`: exige `DOCKER_ID`/`DOCKER_PAT` (PAT oculto si hay terminal, si no falla), usa `docker login --password-stdin` y no imprime secretos. Esas imágenes se despliegan con `aks-jvm` / `values-jvm.yaml`.
 - Si un servicio falla en nativo, se documenta en `docs/DECISIONS.md` y se publica en JVM solo ese servicio.
 - Depende de: E0-07 (SPK-02).
 
 **US-E11-02 · Compose de aplicación** (M)
-- `make demo-up` levanta todo desde Docker Hub (`TAG` configurable) y en menos de 3 minutos `make smoke` pasa.
+- `make demo-up` levanta todo desde Docker Hub (`DOCKER_ID` y `TAG` configurables; `docker.io/<DOCKER_ID>/<svc>:<TAG>`) y en menos de 3 minutos `make smoke` pasa.
 - Escalar `seat-inventory` a 4 con `--scale` funciona y el lag se reparte.
 - Depende de: E11-01.
 
@@ -2248,8 +2269,8 @@ Como *Presentador* quiero simular cientos de asistentes.
 - Depende de: E11-03, E11-01.
 
 **US-E11-04b · Manifiestos `k8s/`** (M)
-- `kubectl apply -k k8s/overlays/aks` (tras namespaces y secretos) deja la plataforma y los 11 servicios en `Ready`, igual que los charts.
-- `kubectl kustomize k8s/overlays/aks` pasa `kubeconform -strict` y no contiene `:latest`; `make k8s-deploy TAG=<sha>` imprime la IP externa de `web`.
+- `k8s/scripts/deploy.sh <tag>` (que reescribe `newName`/`newTag` del overlay con `DOCKER_ID`; `kubectl apply -k` directo sobre el overlay solo sirve con esa copia reescrita) deja la plataforma y los 11 servicios en `Ready`, igual que los charts.
+- Los overlays `aks`, `aks-jvm` y `local`, renderizados con un `DOCKER_ID` de prueba, pasan `kubeconform -strict` y no conservan el marcador `DOCKER_ID`; `make k8s-deploy` (tag `latest` por defecto, o `TAG=<versión>`) (con `DOCKER_ID`) imprime la IP externa de `web`; `OVERLAY=aks-jvm` usa 512Mi/384Mi para Quarkus.
 - Ningún secreto real en el repositorio; solo `seatstorm-secrets.example.yaml`.
 - Depende de: E11-03, E11-04.
 
@@ -2306,7 +2327,8 @@ Estos puntos **no se pueden resolver leyendo documentación** con certeza. Cada 
 | Lenguaje del agente | Python, por los sensores de Dynatrace para SDKs de IA | Java/Quarkus con `anthropic-java`: la llamada se vería como HTTP saliente, sin telemetría de IA |
 | Tamaño del recinto | 360 asientos (se agota rápido: más drama) | 2 000 asientos (mejor escena de escalado): cambiar `Sections` |
 | Público de la demo | Técnico: se muestran Kafka UI y Dynatrace | No técnico: solo `/stage` y una vista simplificada |
-| Organización de Docker Hub | `seatstorm` | `seatstormdemo` u otra |
+| Cuenta de Docker Hub | La cuenta personal del usuario (`DOCKER_ID`) | — |
+| Origen de imágenes en AKS | Nativas desde CI (overlay `aks`) | JVM con `make push-images` (overlay `aks-jvm`, más memoria) |
 | Región y tamaño del AKS | 3 nodos `Standard_D4s_v5` | 4 nodos para la escena de 1 000 bots |
 
 ---
@@ -2369,7 +2391,7 @@ Todas se disparan desde `/console`. Entre escenas: **Reset**.
 - [ ] `make smoke` y `tests/invariants.sh` contra AKS.
 - [ ] Correr las seis escenas completas; grabar el video de respaldo.
 - [ ] Verificar el proveedor elegido: primer token < 8 s y 20 usuarios chateando a la vez sin superar el límite de tasa.
-- [ ] Docker Hub: `imagePullSecret` presente en ambos namespaces.
+- [ ] Docker Hub: `imagePullSecret` (`dockerhub`, creado con `DOCKER_ID`/`DOCKER_PAT`) presente en ambos namespaces.
 
 **30 minutos antes**
 
@@ -2383,7 +2405,7 @@ Todas se disparan desde `/console`. Entre escenas: **Reset**.
 | Síntoma | Causa probable | Solución |
 |---|---|---|
 | El mapa no se actualiza en los celulares | SSE cortado por un proxy o Wi-Fi | Recargar; verificar `proxy_buffering off` en `/live`; el cliente vuelve a pedir `/api/seatmap` |
-| Pods en `ImagePullBackOff` | Límite de Docker Hub o falta el `imagePullSecret` | Crear el secreto y enlazarlo a la ServiceAccount `default` |
+| Pods en `ImagePullBackOff` | Límite de Docker Hub, `DOCKER_ID` incorrecto o falta el `imagePullSecret` | Crear el secreto y enlazarlo a la ServiceAccount `default` |
 | El broker no arranca en AKS | Variable `KAFKA_PORT` inyectada | `enableServiceLinks: false` |
 | Asientos "pegados" en ámbar tras una caída | Job de expiración detenido | Comprobar réplicas de `seat-inventory`; el job se reanuda solo |
 | Órdenes en `PAYING` indefinidamente | `payment-sim` en `PAUSED` o sin réplicas | Console → Pago `OK` |

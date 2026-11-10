@@ -22,8 +22,11 @@ for k in ANTHROPIC_API_KEY NVIDIA_API_KEY; do
 done
 [[ -n "${NVIDIA_API_KEY:-}" && -z "${ANTHROPIC_API_KEY:-}" ]] && sed -i "s|^LLM_PROVIDER=.*|LLM_PROVIDER=nvidia|" .env || true
 
-if [[ -n "${DOCKERHUB_TOKEN:-}" ]]; then
-  echo "$DOCKERHUB_TOKEN" | docker login -u "${DOCKERHUB_USER:?DOCKERHUB_USER missing}" --password-stdin || true
+if [[ -n "${DOCKER_ID:-}" ]]; then
+  sed -i "s|^DOCKER_ID=.*|DOCKER_ID=${DOCKER_ID}|" .env
+  if [[ -n "${DOCKER_PAT:-}" ]]; then
+    printf '%s' "$DOCKER_PAT" | docker login -u "$DOCKER_ID" --password-stdin >/dev/null || true
+  fi
 fi
 
 chmod +x scripts/*.sh

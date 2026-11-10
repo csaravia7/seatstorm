@@ -14,12 +14,12 @@ Tres nodos de 4 vCPU / 16 GB dejan margen para el OneAgent. Para la escena de 10
 
 ## 2. Namespaces, `imagePullSecret` y secretos
 
-Las descargas anónimas de Docker Hub están muy limitadas y los nodos salen por la misma IP, por eso se usa una cuenta autenticada (token de **solo lectura** para el clúster; el de escritura es solo para CI). Aplica también a las imágenes de terceros.
+Las descargas anónimas de Docker Hub están muy limitadas y los nodos salen por la misma IP, por eso se usa tu cuenta personal de Docker Hub autenticada: `DOCKER_ID` (usuario) y `DOCKER_PAT` (personal access token; de **solo lectura** para el clúster, de escritura solo para CI y `make push-images`). Las imágenes son `docker.io/$DOCKER_ID/<svc>:<tag>`. Aplica también a las imágenes de terceros.
 
 Vía rápida (lee `.env`, crea ambos namespaces, `seatstorm-secrets`, `dockerhub` y enlaza la ServiceAccount `default`):
 
 ```bash
-export DOCKERHUB_USER=... DOCKERHUB_TOKEN=...
+export DOCKER_ID=... DOCKER_PAT=...
 k8s/scripts/create-secrets.sh
 ```
 
@@ -29,7 +29,7 @@ Vía manual equivalente:
 kubectl create ns seatstorm-platform && kubectl create ns seatstorm
 for ns in seatstorm-platform seatstorm; do
   kubectl create secret docker-registry dockerhub -n $ns --docker-server=https://index.docker.io/v1/ \
-    --docker-username="$DH_USER" --docker-password="$DH_TOKEN"
+    --docker-username="$DOCKER_ID" --docker-password="$DOCKER_PAT"
   kubectl patch serviceaccount default -n $ns -p '{"imagePullSecrets":[{"name":"dockerhub"}]}'
   kubectl create secret generic seatstorm-secrets -n $ns \
     --from-literal=DB_PASSWORD=... --from-literal=ADMIN_TOKEN=... --from-literal=SESSION_SECRET=... \
@@ -47,22 +47,27 @@ Dos vías equivalentes (mismos recursos, etiquetas, sondas y variables).
 **Helm** (principal en CI; GitHub Actions `deploy-aks` con la entrada `tag`):
 
 ```bash
-make aks-deploy TAG=<git-sha>
+export DOCKER_ID=<tu-usuario-docker-hub>
+make aks-deploy TAG=<tag>               # imágenes nativas (CI)
+make aks-deploy TAG=<tag> HELM_VALUES=charts/seatstorm/values-jvm.yaml   # imágenes JVM (make push-images)
 # = helm upgrade --install platform charts/platform -n seatstorm-platform --create-namespace
-#   helm upgrade --install seatstorm charts/seatstorm -n seatstorm --create-namespace --set image.tag=<git-sha>
+#   helm upgrade --install seatstorm charts/seatstorm -n seatstorm --create-namespace [-f values-jvm.yaml] --set image.org=$DOCKER_ID --set image.tag=<tag>
 kubectl get svc web -n seatstorm        # IP externa
 ```
 
 **Kustomize / kubectl** (sin Helm):
 
 ```bash
-make k8s-deploy TAG=<git-sha>           # = k8s/scripts/deploy.sh <git-sha>
+make k8s-deploy TAG=<tag>               # nativas (CI): overlay aks; pide DOCKER_ID/DOCKER_PAT
+OVERLAY=aks-jvm make k8s-deploy TAG=<tag>   # JVM (make push-images): overlay aks-jvm
 make k8s-destroy                        # borra ambos namespaces (pide confirmación)
 ```
 
+**Cuándo usar cuál:** imágenes nativas publicadas por CI (`release.yaml`) → overlay `aks` / `values.yaml` (256Mi por servicio Quarkus). Imágenes JVM que subes tú con `make push-images TAG=<tag>` (necesita `DOCKER_ID` y `DOCKER_PAT` con escritura) → overlay `aks-jvm` / `values-jvm.yaml` (512Mi, 384Mi `notification`); con los límites nativos las imágenes JVM mueren por OOM.
+
 No mezclar las dos vías sobre el mismo clúster sin destruir antes (los recursos no tienen el mismo dueño para Helm).
 
-Workflow `deploy-aks`: requiere el secreto de repositorio `KUBE_CONFIG` (kubeconfig de `az aks get-credentials --admin`, en base64: `base64 -w0 ~/.kube/config`) y que los secretos del paso 2 ya existan en el clúster. Release de imágenes: `release.yaml` (tag `v*` o manual) publica `seatstorm/<svc>:<git-sha>`; usa ese sha como `TAG`. Nunca `:latest`.
+Workflow `deploy-aks` (entradas `tag` e `images`: `native`|`jvm`): requiere los secretos de repositorio `KUBE_CONFIG` y `DOCKER_ID` (kubeconfig de `az aks get-credentials --admin`, en base64: `base64 -w0 ~/.kube/config`) y que los secretos del paso 2 ya existan en el clúster. Release de imágenes: `release.yaml` (tag `v*` o manual) publica `docker.io/<DOCKER_ID>/<svc>:<git-sha>` (secretos de repositorio `DOCKER_ID` y `DOCKER_PAT`); usa ese sha como `TAG`. Nunca `:latest`.
 
 Acceso a Kafka UI: `kubectl port-forward -n seatstorm-platform svc/kafka-ui 8085:8080` (o `--set kafkaUi.expose=true` en el chart de plataforma).
 

@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: seat-inventory
-          image: docker.io/seatstorm/seat-inventory
+          image: docker.io/DOCKER_ID/seat-inventory
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

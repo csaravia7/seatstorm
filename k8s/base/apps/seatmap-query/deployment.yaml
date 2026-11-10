@@ -24,7 +24,7 @@ spec:
         runAsUser: 1001
       containers:
         - name: seatmap-query
-          image: docker.io/seatstorm/seatmap-query
+          image: docker.io/DOCKER_ID/seatmap-query
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
