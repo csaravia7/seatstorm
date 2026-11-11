@@ -161,6 +161,13 @@ services:
       NVIDIA_TOP_P: ${NVIDIA_TOP_P:-1}
       NVIDIA_MAX_TOKENS: ${NVIDIA_MAX_TOKENS:-4096}
       GUARDRAILS_MODE: ${GUARDRAILS_MODE:-enforce}
+      PROMPT_PROFILE: ${PROMPT_PROFILE:-strict}
+      ASSISTANT_ADMIN_TOOLS: ${ASSISTANT_ADMIN_TOOLS:-false}
+      ORDER_URL: http://order-service:8080
+      CATALOG_URL: http://event-catalog:8080
+      PAYMENT_URL: http://payment-sim:8080
+      BOTS_URL: http://bot-swarm:3100
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-change-me-admin}
       # Arize AX tracing (opcional: sin ARIZE_SPACE_ID/ARIZE_API_KEY queda desactivado)
       ARIZE_SPACE_ID: ${ARIZE_SPACE_ID:-}
       ARIZE_API_KEY: ${ARIZE_API_KEY:-}

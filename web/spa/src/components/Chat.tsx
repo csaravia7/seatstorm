@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { SseParser } from '../lib/sse';
+import { adoptOrder, restoreActiveOrder } from '../state/flow';
 
-export const SUGGESTIONS = ['¿Por qué perdí mi asiento?', '¿Quedan 2 asientos juntos en platea?', '¿Cómo funciona esto?'];
+export const SUGGESTIONS = ['¿Por qué perdí mi asiento?', '¿Quedan 2 asientos juntos en platea?', 'Resérvame 2 asientos juntos en Palco 4', '¿Cómo funciona esto?'];
 export const CHAT_FALLBACK = 'Ahora mismo no puedo responder. Puedes seguir comprando: el resto de la demo funciona con normalidad.';
 
 interface Msg {
@@ -16,6 +18,20 @@ export function ChatWidget() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const lastUser = useRef<string>('');
+  const navigate = useNavigate();
+
+  // UI actions requested by the assistant's tools. Order steps are driven by state (the URL follows it), map pages by URL.
+  function runAction(raw: string) {
+    try {
+      const a = JSON.parse(raw) as { type?: string; path?: string; orderId?: string };
+      if (a.type !== 'navigate' || !a.path) return;
+      if (a.orderId) void adoptOrder(a.orderId);
+      else if (a.path.startsWith('/mapa')) void navigate(a.path);
+      else void restoreActiveOrder();
+    } catch {
+      // ignore malformed action
+    }
+  }
 
   async function send(text: string) {
     const message = text.trim();
@@ -58,6 +74,7 @@ export function ChatWidget() {
         if (r.done) break;
         for (const ev of parser.push(dec.decode(r.value, { stream: true }))) {
           if (ev.event === 'token') append(ev.data);
+          else if (ev.event === 'action') runAction(ev.data);
           else if (ev.event === 'error') {
             fail(ev.data || CHAT_FALLBACK);
             done = true;

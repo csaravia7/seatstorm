@@ -90,6 +90,29 @@ export async function restoreActiveOrder(): Promise<void> {
   }
 }
 
+/** The assistant reserved seats for this buyer: load that order straight from order-service so the UI jumps to /reservar. */
+export async function adoptOrder(orderId: string): Promise<void> {
+  try {
+    const n = normalizeOrder(await api.order(orderId));
+    if (n?.status) {
+      ps().setOrder({
+        orderId,
+        status: n.status,
+        reason: n.reason ?? null,
+        heldUntilMs: n.heldUntilMs ?? null,
+        sectionId: n.sectionId ?? '',
+        seatIds: n.seatIds ?? [],
+        totalCents: n.totalCents ?? 0,
+        ticketQr: n.ticketQr,
+      });
+      return;
+    }
+  } catch {
+    // fall through
+  }
+  await restoreActiveOrder();
+}
+
 /** The QR comes from seatmap-query (TicketIssued is asynchronous), so poll until it shows up. */
 export async function fetchTicket(orderId: string, tries = 10, delayMs = 1000): Promise<void> {
   for (let i = 0; i < tries; i++) {

@@ -54,9 +54,9 @@ class Agent:
                                                top_p=self.s.nvidia_top_p, max_tokens=self.s.nvidia_max_tokens)
         return out
 
-    @staticmethod
-    def _tools_for(name: str) -> list[dict]:
-        return anthropic_tools() if name == "anthropic" else openai_tools()
+    def _tools_for(self, name: str) -> list[dict]:
+        admin = self.s.admin_tools
+        return anthropic_tools(admin) if name == "anthropic" else openai_tools(admin)
 
     async def events(self, session: Session, message: str) -> AsyncIterator[tuple[str, str]]:
         """Yield (event, data) SSE tuples: token* then done | error."""
@@ -162,7 +162,10 @@ class Agent:
                 await q.put(("token", piece))
 
         runner = ToolRunner(self.http, self.s.query_url, self.s.concert_id, session.buyer_id,
-                            self.s.tool_timeout_s, sid)
+                            self.s.tool_timeout_s, sid, nickname=session.nickname, order_url=self.s.order_url,
+                            catalog_url=self.s.catalog_url, payment_url=self.s.payment_url,
+                            bots_url=self.s.bots_url, admin_token=self.s.admin_token,
+                            admin_tools=self.s.admin_tools)
 
         async def call_tool(name: str, args: dict | None) -> str:
             with self.tracer.start_as_current_span(f"tool.{name}", attributes={
@@ -171,6 +174,8 @@ class Agent:
                 out = await runner.call(name, args)
                 ts.set_attribute(T.OUTPUT_VALUE, out)
             tool_outputs.append(out)
+            while runner.actions:  # UI actions (e.g. navigate to /reservar after reserving) go to the browser as SSE
+                await q.put(("action", json.dumps(runner.actions.pop(0))))
             return out
 
         for i, name in enumerate(self.chain):

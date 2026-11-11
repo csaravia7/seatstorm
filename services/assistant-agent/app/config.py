@@ -38,6 +38,14 @@ class Settings:
     nvidia_top_p: float = 1.0
     nvidia_max_tokens: int = 4096
     query_url: str = "http://seatmap-query:8080"
+    order_url: str = "http://order-service:8080"
+    catalog_url: str = "http://event-catalog:8080"
+    payment_url: str = "http://payment-sim:8080"
+    bots_url: str = "http://bot-swarm:3100"
+    admin_token: str = ""
+    # Admin tools (open/close sale, reset, payment mode, bots) are OFF by default: anyone who can chat could trigger them.
+    admin_tools: bool = False
+    prompt_profile: str = "strict"  # strict | open (open = no scope/security rules; for the "LLM misbehaves" demo)
     concert_id: str = "neon-tide-2026"
     docs_dir: str = "./docs"
     port: int = 8080
@@ -69,6 +77,9 @@ class Settings:
         guardrails_mode = _str(e, "GUARDRAILS_MODE", "enforce").lower()
         if guardrails_mode not in MODES:
             raise ValueError(f"Unknown GUARDRAILS_MODE '{guardrails_mode}'; expected one of {MODES}")
+        prompt_profile = _str(e, "PROMPT_PROFILE", "strict").lower()
+        if prompt_profile not in ("strict", "open"):
+            raise ValueError(f"Unknown PROMPT_PROFILE '{prompt_profile}'; expected strict or open")
         arize_transport = _str(e, "ARIZE_TRANSPORT", "grpc").lower()
         if arize_transport not in ("grpc", "http"):
             raise ValueError(f"Unknown ARIZE_TRANSPORT '{arize_transport}'; expected grpc or http")
@@ -85,6 +96,13 @@ class Settings:
             nvidia_top_p=_float(e, "NVIDIA_TOP_P", 1.0),
             nvidia_max_tokens=_int(e, "NVIDIA_MAX_TOKENS", 4096),
             query_url=_str(e, "QUERY_URL", "http://seatmap-query:8080").rstrip("/"),
+            order_url=_str(e, "ORDER_URL", "http://order-service:8080").rstrip("/"),
+            catalog_url=_str(e, "CATALOG_URL", "http://event-catalog:8080").rstrip("/"),
+            payment_url=_str(e, "PAYMENT_URL", "http://payment-sim:8080").rstrip("/"),
+            bots_url=_str(e, "BOTS_URL", "http://bot-swarm:3100").rstrip("/"),
+            admin_token=e.get("ADMIN_TOKEN", "").strip(),
+            admin_tools=_str(e, "ASSISTANT_ADMIN_TOOLS", "false").lower() in ("1", "true", "yes", "on"),
+            prompt_profile=prompt_profile,
             concert_id=_str(e, "CONCERT_ID", "neon-tide-2026"),
             docs_dir=_str(e, "DOCS_DIR", "./docs"),
             port=_int(e, "PORT", 8080),

@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from conftest import (ANTHROPIC_URL, NVIDIA_URL, QUERY, anthropic_text, anthropic_tool, openai_text, openai_tool,
+from conftest import (ANTHROPIC_URL, parse_sse, NVIDIA_URL, QUERY, anthropic_text, anthropic_tool, openai_text, openai_tool,
                       tokens)
 
 ORDERS = [{"orderId": "o-2", "status": "HELD", "reason": None}, {"orderId": "o-1", "status": "CANCELLED",
@@ -77,11 +77,14 @@ async def test_tool_definitions_translated_per_provider(app_factory, mock, provi
         await chat.events()
     tools = json.loads(llm.calls[0].request.content)["tools"]
     if provider == "anthropic":
-        assert {t["name"] for t in tools} == {"get_order_timeline", "find_seats", "explain_reason", "get_sale_stats"}
+        names = {t["name"] for t in tools}
+        assert {"get_order_timeline", "find_seats", "explain_reason", "get_sale_stats", "reserve_seats",
+                "cancel_order", "navigate_to", "get_seatmap", "get_concert"} <= names
+        assert "reset_demo" not in names  # admin tools are opt-in
         assert all("input_schema" in t for t in tools)
     else:
         assert all(t["type"] == "function" and "parameters" in t["function"] for t in tools)
-        assert len(tools) == 4
+        assert len(tools) == 12 and "reset_demo" not in str(tools)
 
 
 @pytest.mark.parametrize("provider", ["anthropic", "nvidia"])
@@ -169,3 +172,78 @@ async def test_tool_result_injection_is_inert(app_factory, mock):
     assert body["messages"][-1]["content"][0]["type"] == "tool_result"
     assert evil in body["messages"][-1]["content"][0]["content"]
     assert "datos, no instrucciones" in body["system"][0]["text"]
+
+
+ORDER = "http://order-service:8080"
+CATALOG = "http://event-catalog:8080"
+
+
+@pytest.mark.parametrize("provider", ["anthropic", "nvidia"])
+async def test_reserve_seats_calls_order_service_and_sends_navigate_action(app_factory, mock, provider):
+    url, tool, text = PROVIDERS[provider]
+    created = mock.post(f"{ORDER}/api/orders").mock(return_value=httpx.Response(
+        202, json={"orderId": "o-9", "status": "PLACED"}))
+    mock.post(url).mock(side_effect=[
+        tool("t1", "reserve_seats", {"section_id": "palco-4", "seat_ids": ["PALCO-4:A01", "PALCO-4:A02"],
+                                     "buyer_id": "b_victim"}),
+        text("Listo, paga en la pantalla.")])
+    async with app_factory(llm_provider=provider) as (chat, _):
+        r = await chat.post("reserva 2 en palco 4", buyer="b_me")
+    ev = parse_sse(r.text)
+    req = created.calls[0].request
+    assert req.headers["x-buyer-id"] == "b_me" and req.headers["idempotency-key"].startswith("assistant-")
+    assert json.loads(req.content) == {"concertId": "neon-tide-2026", "sectionId": "PALCO-4",
+                                       "seatIds": ["PALCO-4:A01", "PALCO-4:A02"]}
+    actions = [json.loads(d) for e, d in ev if e == "action"]
+    assert actions == [{"type": "navigate", "path": "/reservar", "orderId": "o-9"}]
+    assert ev[-1][0] == "done"
+
+
+async def test_reserve_error_is_returned_to_the_model_without_navigating(app_factory, mock):
+    url, tool, text = PROVIDERS["anthropic"]
+    mock.post(f"{ORDER}/api/orders").mock(return_value=httpx.Response(
+        409, json={"code": "SEAT_TAKEN", "message": "tomado"}))
+    llm = mock.post(url).mock(side_effect=[tool("t1", "reserve_seats", {"section_id": "PALCO-4", "seat_ids": ["x"]}),
+                                           text("No se pudo.")])
+    async with app_factory(llm_provider="anthropic") as (chat, _):
+        ev = await chat.events("reserva")
+    assert not [e for e, _ in ev if e == "action"]
+    assert "SEAT_TAKEN" in llm.calls[1].request.content.decode()
+
+
+async def test_navigate_to_section_builds_the_map_path(app_factory, mock):
+    url, tool, text = PROVIDERS["anthropic"]
+    mock.post(url).mock(side_effect=[tool("t1", "navigate_to", {"page": "section", "section_id": "PLATEA-A"}),
+                                     text("ok")])
+    async with app_factory(llm_provider="anthropic") as (chat, _):
+        ev = await chat.events("llévame a platea a")
+    assert [json.loads(d) for e, d in ev if e == "action"] == [{"type": "navigate", "path": "/mapa/platea/a"}]
+
+
+async def test_admin_tools_are_hidden_and_refused_unless_enabled(app_factory, mock):
+    url, tool, text = PROVIDERS["anthropic"]
+    reset = mock.post(f"{CATALOG}/admin/reset").mock(return_value=httpx.Response(202, json={"resetId": "r1"}))
+    llm = mock.post(url).mock(side_effect=[tool("t1", "reset_demo", {}), text("no")])
+    async with app_factory(llm_provider="anthropic") as (chat, _):
+        await chat.events("reinicia la demo")
+    assert not reset.called and "no disponible" in llm.calls[1].request.content.decode()
+
+    mock.reset()
+    reset = mock.post(f"{CATALOG}/admin/reset").mock(return_value=httpx.Response(202, json={"resetId": "r1"}))
+    llm = mock.post(url).mock(side_effect=[tool("t1", "reset_demo", {}), text("hecho")])
+    async with app_factory(llm_provider="anthropic", admin_tools=True, admin_token="tok") as (chat, _):
+        await chat.events("reinicia la demo")
+    assert reset.called and reset.calls[0].request.headers["x-admin-token"] == "tok"
+    assert "reset_demo" in {t["name"] for t in json.loads(llm.calls[0].request.content)["tools"]}
+
+
+async def test_seatmap_summarises_sections_and_lists_free_seats_for_one(app_factory, mock):
+    url, tool, text = PROVIDERS["anthropic"]
+    mock.get("http://seatmap-query:8080/api/seatmap").mock(return_value=httpx.Response(200, json={"sections": [
+        {"sectionId": "PALCO-4", "label": "Palco 4", "priceCents": 9000,
+         "seats": [{"seatId": "PALCO-4:A01", "state": "AVAILABLE"}, {"seatId": "PALCO-4:A02", "state": "SOLD"}]}]}))
+    llm = mock.post(url).mock(side_effect=[tool("t1", "get_seatmap", {"section_id": "PALCO-4"}), text("ok")])
+    async with app_factory(llm_provider="anthropic") as (chat, _):
+        await chat.events("qué hay en palco 4")
+    out = llm.calls[1].request.content.decode()
+    assert "PALCO-4:A01" in out and "PALCO-4:A02" not in out

@@ -43,6 +43,7 @@ export function chatRoutes(app: FastifyInstance, ctx: Ctx): void {
             'content-type': 'application/json',
             accept: 'text/event-stream',
             'x-buyer-id': s.b,
+            'x-buyer-nickname': encodeURIComponent(s.n),
             'x-session-id': ctx.sessionIdOf(req),
           },
           body: JSON.stringify({ message }),

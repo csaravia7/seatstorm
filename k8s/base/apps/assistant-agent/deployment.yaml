@@ -47,8 +47,24 @@ spec:
             - name: LLM_FALLBACK_PROVIDER
               value: ""
             # Guardrails del chat: enforce (bloquea/redacta) | monitor (solo registra) | off
+            # Demo "la IA se equivoca": monitor = solo registra/evalua (Arize), no bloquea. Volver a "enforce" para proteger.
             - name: GUARDRAILS_MODE
-              value: "enforce"
+              value: "monitor"
+            # strict = alcance y seguridad en el prompt | open = sin restricciones de tema
+            - name: PROMPT_PROFILE
+              value: "open"
+            # Herramientas de organizador (abrir/cerrar venta, reset, pasarela, bots). Cualquiera que chatee podria
+            # dispararlas: dejar en "false" salvo en una demo controlada. Usan ADMIN_TOKEN del Secret.
+            - name: ASSISTANT_ADMIN_TOOLS
+              value: "false"
+            - name: ORDER_URL
+              value: "http://order-service:8080"
+            - name: CATALOG_URL
+              value: "http://event-catalog:8080"
+            - name: PAYMENT_URL
+              value: "http://payment-sim:8080"
+            - name: BOTS_URL
+              value: "http://bot-swarm:3100"
             # Arize AX: ARIZE_SPACE_ID, ARIZE_API_KEY, ARIZE_OTLP_ENDPOINT y ARIZE_PROJECT_NAME llegan del Secret
             # (envFrom, se piden en setup-env.sh). Un `env:` aqui los pisaria. ARIZE_ENABLED=false desactiva.
             - name: LLM_MAX_RPM

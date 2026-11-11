@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from urllib.parse import unquote
 from typing import Callable
 
 import httpx
@@ -45,7 +46,7 @@ def create_app(settings_factory: Callable[[], Settings] = Settings.from_env,
         setup_logging()
         settings = settings_factory()
         # Fails fast (clear message) if docs are missing or over 12 KB.
-        system_prompt = build_system_prompt(settings.docs_dir)
+        system_prompt = build_system_prompt(settings.docs_dir, settings.prompt_profile, settings.admin_tools)
         if not settings.provider_chain():
             log.warning(
                 "No API key for the configured provider(s); /api/chat will always answer the fallback text",
@@ -89,7 +90,8 @@ def create_app(settings_factory: Callable[[], Settings] = Settings.from_env,
         if not app.state.limiter.allow(session_id):
             return error_response(429, "RATE_LIMITED",
                                   "Has alcanzado el máximo de mensajes por hora. Inténtalo más tarde.")
-        session = app.state.sessions.register(session_id, buyer_id)
+        nickname = unquote((request.headers.get("X-Buyer-Nickname") or "").strip())
+        session = app.state.sessions.register(session_id, buyer_id, nickname)
         agent: Agent = app.state.agent
 
         async def stream():

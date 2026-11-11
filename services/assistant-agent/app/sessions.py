@@ -12,6 +12,7 @@ MAX_TURNS = 10
 class Session:
     session_id: str
     buyer_id: str
+    nickname: str = ""
     history: list = field(default_factory=list)  # provider-neutral [{"role", "content": str}]
     last_seen: float = 0.0
 
@@ -27,13 +28,13 @@ class SessionStore:
         self._clock = clock
         self._sessions: dict[str, Session] = {}
 
-    def register(self, session_id: str, buyer_id: str) -> Session:
+    def register(self, session_id: str, buyer_id: str, nickname: str = "") -> Session:
         """Bind sessionId to buyerId (done by the endpoint before calling the model)."""
         now = self._clock()
         self._purge(now)
         s = self._sessions.get(session_id)
         if s is None or s.buyer_id != buyer_id:
-            s = Session(session_id, buyer_id)
+            s = Session(session_id, buyer_id, nickname)
             self._sessions[session_id] = s
         s.last_seen = now
         return s
