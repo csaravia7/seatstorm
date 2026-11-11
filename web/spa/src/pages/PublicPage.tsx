@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
+import { useLocation, useNavigate } from 'react-router';
+import { PATHS, pathForOrder, sectionFromPath, sectionPath } from '../lib/routes';
 import { api } from '../api/endpoints';
 import { ApiError } from '../api/client';
 import { SeatMap } from '../components/SeatMap';
@@ -164,7 +166,10 @@ function MessageScreen({ title, text, onDone }: { title: string; text: string; o
 }
 
 function MapScreen() {
-  const [sectionId, setSectionId] = useState<string | null>(null);
+  // The open section lives in the URL (/mapa/palco/4) so it is a page of its own and survives reload/back.
+  const navigate = useNavigate();
+  const sectionId = sectionFromPath(useLocation().pathname);
+  const setSectionId = (id: string | null) => void navigate(id ? sectionPath(id) : PATHS.map);
   const selection = usePurchaseStore((s) => s.selection);
   const notice = usePurchaseStore((s) => s.notice);
   const setNotice = usePurchaseStore((s) => s.setNotice);
@@ -228,6 +233,9 @@ export function PublicPage() {
   const sale = useMapStore((s) => s.saleStatus);
   const openingUntil = useMapStore((s) => s.openingUntil);
   const [opening, setOpening] = useState(false);
+  const [restored, setRestored] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     let alive = true;
@@ -236,8 +244,13 @@ export function PublicPage() {
   }, [setMe]);
 
   useEffect(() => {
-    if (me) void restoreActiveOrder();
-  }, [me]);
+    if (!checked) return;
+    if (!me) {
+      setRestored(true);
+      return;
+    }
+    void restoreActiveOrder().finally(() => setRestored(true));
+  }, [me, checked]);
 
   // Fallback to the live channel: poll the order while it is in flight (see flow.ts).
   useEffect(() => startOrderWatcher(), []);
@@ -286,6 +299,22 @@ export function PublicPage() {
     clearSelection();
     setOrder(null);
   };
+
+  // The URL follows the journey state (never the other way round), one history entry per step.
+  const firstSync = useRef(true);
+  const wanted = !checked || !restored
+    ? null
+    : !me
+      ? PATHS.join
+      : (pathForOrder(status, reason) ?? (sale === 'CLOSED' && !order ? PATHS.waiting : sectionFromPath(location.pathname) ? location.pathname : PATHS.map));
+  useEffect(() => {
+    if (!wanted || wanted === location.pathname) return;
+    void navigate(wanted, { replace: firstSync.current });
+    firstSync.current = false;
+  }, [wanted, location.pathname, navigate]);
+  useEffect(() => {
+    if (wanted) firstSync.current = false;
+  }, [wanted]);
 
   if (!checked) return <Spinner text="Cargando…" />;
   if (!me) return <JoinScreen />;

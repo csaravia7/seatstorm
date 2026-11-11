@@ -13,7 +13,6 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<PublicPage />} />
           <Route path="/stage" element={<StagePage />} />
           <Route path="/console" element={<ConsolePage />} />
           <Route path="*" element={<PublicPage />} />
